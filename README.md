@@ -135,6 +135,7 @@ vulnerability scanning turned on for that environment in Dockhand.
 type: custom:dockhand-stack-card
 device_id: <stack device>
 name: null # optional — Composed or Custom, same as every other card's Name field
+icon: null # optional — custom header icon (e.g. mdi:layers-triple); defaults to mdi:layers
 show_settings_link: true # link to open this stack in Dockhand
 visible_sections: [status, containers, git_sync] # which sections show, independent of each other
 ```
@@ -155,14 +156,17 @@ resolved.
 type: custom:dockhand-container-card
 device_id: <container device>
 name: null # optional — Composed or Custom, same as every other card's Name field
+icon: null # optional — custom header icon (e.g. mdi:server); defaults to mdi:docker
 show_settings_link: true # link to open this container in Dockhand
+show_controls: true # show start/stop/restart buttons in the header — off hides them
 visible_sections: [state, metrics, io] # which sections show, independent of each other
 ```
 
 State, health (when the container has a healthcheck), CPU/memory usage, and network/block I/O.
 CPU/memory and per-container I/O sensors are opt-in in ha-dockhand and off by default — the card
 shows a hint rather than a blank chart when they're not enabled. CPU, memory, and the health icon
-each open their own entity's more-info dialog — not just the container's overall state.
+each open their own entity's more-info dialog — not just the container's overall state.  
+The header also carries start/stop/restart controls when the container isn't a system container (ha-dockhand doesn't create those entities for Dockhand itself or a Hawser agent, so the controls simply don't appear there). Toggle them off with show_controls: false if you'd rather keep the header clean.
 
 <p>
   <img src="docs/images/container.png" alt="Container card, dark theme" width="420">
