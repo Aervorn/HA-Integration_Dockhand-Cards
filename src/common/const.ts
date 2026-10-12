@@ -62,7 +62,8 @@ export const CONTAINER_TRANSLATION_KEYS = {
   networkRx: 'container_network_rx',
   networkTx: 'container_network_tx',
   blockRead: 'container_block_read',
-  blockWrite: 'container_block_write'
+  blockWrite: 'container_block_write',
+  restart: 'restart'
 } as const;
 
 export type ContainerTranslationKey = keyof typeof CONTAINER_TRANSLATION_KEYS;
@@ -77,7 +78,8 @@ export const STACK_TRANSLATION_KEYS = {
   updatesAvailable: 'stack_updates_available',
   gitSyncStatus: 'git_stack_sync_status',
   gitLastSync: 'git_stack_last_sync',
-  gitSyncError: 'git_stack_sync_error'
+  gitSyncError: 'git_stack_sync_error',
+  restart: 'restart'
 } as const;
 
 export type StackTranslationKey = keyof typeof STACK_TRANSLATION_KEYS;
@@ -244,3 +246,8 @@ export const CONTAINER_STATE_CLASS: Record<string, string> = {
   exited: 'neutral',
   dead: 'neutral'
 };
+
+/** Default header icons — overridable via the `icon` config option on
+ * cards that support it (Containers list, individual Stack). */
+export const DEFAULT_CONTAINERS_ICON = 'mdi:docker';
+export const DEFAULT_STACK_ICON = 'mdi:layers';

@@ -22,6 +22,21 @@ the Releases page.
 
 ## [Unreleased]
 
+### Added
+
+- **Container card: start/stop/restart controls directly in the header.** Each icon calls the
+  same ha-dockhand `switch`/`button` entity an equivalent dashboard switch or button card
+  would — no new entities, no new API calls from the card itself, the same trust boundary every
+  other card in this repo already respects. Pressing one refreshes that container's entities
+  through ha-dockhand's own coordinator, so the state icon updates on its own. System containers
+  (Dockhand itself, a Hawser agent) get no controls. ha-dockhand deliberately doesn't create
+  those entities for them, so the controls simply don't appear. `show_controls: false` hides them
+  even on a regular container.
+- **Container and Stack cards: custom header icon.** Both cards have always hardcoded their own
+  header badge (`mdi:docker` for Container, `mdi:layers` for Stack). Both now accept an optional
+  `icon` field (a standard HA icon picker in the editor) overriding just that badge. Leaving it
+  unset keeps the existing default, so no config change is needed for anyone who doesn't want one.
+
 ## [1.3.2] - 2026-09-24
 
 ### Changed

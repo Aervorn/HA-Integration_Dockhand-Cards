@@ -11,7 +11,7 @@ import { joinWithDividers, mergeSections } from '../common/section-join';
 import type { ContainerTranslationKey } from '../common/const';
 import { barColorClass, formatBytes, getDockhandBaseUrl } from '../common/format';
 import { renderSettingsLink, renderIcon, onKeydownActivate } from '../common/icon';
-import { CONTAINER_STATE_CLASS, HEALTH_ICON, HEALTH_STATUS_CLASS } from '../common/const';
+import { CONTAINER_STATE_CLASS, HEALTH_ICON, HEALTH_STATUS_CLASS, DEFAULT_CONTAINERS_ICON } from '../common/const';
 import { DEFAULT_CONTAINER_SECTIONS, type DockhandContainerCardConfig } from './types';
 import { cardStyles } from './styles';
 
@@ -113,6 +113,9 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
     const name = resolveCardName(this._hass, representativeEntityId, this._config.name, device.name_by_user || device.name || 'Container');
     const image = s.state?.state.attributes.image as string | undefined;
     const update = findPrimaryEntityByDomain(this._hass, this._config.device_id, 'update');
+    const runningSwitch = findPrimaryEntityByDomain(this._hass, this._config.device_id, 'switch');
+    const restartResolution = resolveContainerEntities(this._hass, this._config.device_id, ['restart']);
+    const restartButton = restartResolution.found.restart;
     const updatePending = update?.state.state === 'on';
 
     return html`
@@ -120,13 +123,38 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
         <div class="body">
           <div class="card-header">
             <div class="header-left">
-              ${renderIcon({ baseClass: 'card-badge', icon: 'mdi:docker', static: true })}
+              ${renderIcon({ baseClass: 'card-badge', icon: this._config.icon || DEFAULT_CONTAINERS_ICON, static: true })}
               <div class="stacked-pair">
                 <span class="truncate">${name}</span>
                 ${image ? html`<span class="card-subheader truncate">${image}</span>` : nothing}
               </div>
             </div>
             <div class="header-right">
+              ${this._config.show_controls !== false && runningSwitch
+                ? html`
+                    ${runningSwitch.state.state === 'on'
+                      ? renderIcon({
+                          baseClass: 'header-icon',
+                          icon: 'mdi:stop',
+                          title: 'Stop',
+                          onClick: () => this._callService('switch', 'turn_off', runningSwitch.entityId)
+                        })
+                      : renderIcon({
+                          baseClass: 'header-icon',
+                          icon: 'mdi:play',
+                          title: 'Start',
+                          onClick: () => this._callService('switch', 'turn_on', runningSwitch.entityId)
+                        })}
+                    ${restartButton
+                      ? renderIcon({
+                          baseClass: 'header-icon',
+                          icon: 'mdi:restart',
+                          title: 'Restart',
+                          onClick: () => this._callService('button', 'press', restartButton.entityId)
+                        })
+                      : nothing}
+                  `
+                : nothing}
               ${updatePending
                 ? renderIcon({
                     baseClass: 'header-icon',
@@ -273,5 +301,9 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
         )}
       </div>
     `;
+  }
+
+  private _callService(domain: string, service: string, entityId: string): void {
+    this._hass?.callService(domain, service, { entity_id: entityId });
   }
 }

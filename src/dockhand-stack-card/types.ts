@@ -28,4 +28,7 @@ export interface DockhandStackCardConfig extends LovelaceCardConfig {
    * see common/card-name.ts. */
   name?: string | EntityNameItem | EntityNameItem[];
   show_settings_link?: boolean;
+  /** Custom header icon (e.g. "mdi:layers-triple"). Falls back to
+  * DEFAULT_STACK_ICON when unset. */
+  icon?: string;
 }
