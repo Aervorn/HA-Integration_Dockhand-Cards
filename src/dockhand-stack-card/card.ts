@@ -13,6 +13,7 @@ import { renderSettingsLink, renderIcon, onKeydownActivate } from '../common/ico
 import { joinWithDividers } from '../common/section-join';
 import { DEFAULT_STACK_SECTIONS, type DockhandStackCardConfig } from './types';
 import { cardStyles } from './styles';
+import { DEFAULT_STACK_ICON } from '../common/const';
 
 const STATUS_ICON: Record<string, string> = {
   running: 'mdi:play-circle',
@@ -117,7 +118,7 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
         <div class="body">
           <div class="card-header">
             <div class="header-left">
-              ${renderIcon({ baseClass: 'card-badge', icon: 'mdi:layers', static: true })}
+              ${renderIcon({ baseClass: 'card-badge', icon: this._config.icon || DEFAULT_STACK_ICON, static: true })}
               <span class="truncate">${name}</span>
             </div>
             <div class="header-right">

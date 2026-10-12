@@ -96,7 +96,9 @@ const en = {
   content_section_heading: 'Content',
   solo_this_environment: 'Show only this environment',
   select_all_environments: 'Show all',
-  clear_all_environments: 'Clear'
+  clear_all_environments: 'Clear',
+  icon: 'Icon (optional)',
+  show_controls: 'Show controls (start / stop / restart)'
 } as const;
 
 const de: Record<EditorTranslationKey, string> = {
@@ -184,7 +186,9 @@ const de: Record<EditorTranslationKey, string> = {
   content_section_heading: 'Inhalt',
   solo_this_environment: 'Nur diese Umgebung anzeigen',
   select_all_environments: 'Alle anzeigen',
-  clear_all_environments: 'Leeren'
+  clear_all_environments: 'Leeren',
+  icon: 'Symbol (optional)',
+  show_controls: 'Controls anzeigen (Start / Stop / Restart)'
 };
 
 const es: Record<EditorTranslationKey, string> = {
@@ -272,7 +276,9 @@ const es: Record<EditorTranslationKey, string> = {
   content_section_heading: 'Contenido',
   solo_this_environment: 'Mostrar solo este entorno',
   select_all_environments: 'Mostrar todo',
-  clear_all_environments: 'Limpiar'
+  clear_all_environments: 'Limpiar',
+  icon: 'Icono (opcional)',
+  show_controls: 'Mostrar controles (iniciar / detener / reiniciar)'
 };
 
 const fr: Record<EditorTranslationKey, string> = {
@@ -360,7 +366,9 @@ const fr: Record<EditorTranslationKey, string> = {
   content_section_heading: 'Contenu',
   solo_this_environment: 'Afficher uniquement cet environnement',
   select_all_environments: 'Tout afficher',
-  clear_all_environments: 'Effacer'
+  clear_all_environments: 'Effacer',
+  icon: 'Icon (optionel)',
+  show_controls: 'Afficher les contrôles (démarrer / arrêter / redémarrer)'
 };
 
 const it: Record<EditorTranslationKey, string> = {
@@ -448,7 +456,9 @@ const it: Record<EditorTranslationKey, string> = {
   content_section_heading: 'Contenuto',
   solo_this_environment: 'Mostra solo questo ambiente',
   select_all_environments: 'Mostra tutto',
-  clear_all_environments: 'Cancella'
+  clear_all_environments: 'Cancella',
+  icon: 'Icona (facoltativa)',
+  show_controls: 'Mostra controlli (avvia / ferma / riavvia)'
 };
 
 const nb: Record<EditorTranslationKey, string> = {
@@ -536,7 +546,9 @@ const nb: Record<EditorTranslationKey, string> = {
   content_section_heading: 'Innhold',
   solo_this_environment: 'Vis bare dette miljøet',
   select_all_environments: 'Vis alle',
-  clear_all_environments: 'Fjern'
+  clear_all_environments: 'Fjern',
+  icon: 'Ikon (valgfritt)',
+  show_controls: 'Vis kontroller (start / stopp / restart)'
 };
 
 const nl: Record<EditorTranslationKey, string> = {
@@ -624,7 +636,9 @@ const nl: Record<EditorTranslationKey, string> = {
   content_section_heading: 'Inhoud',
   solo_this_environment: 'Alleen deze omgeving tonen',
   select_all_environments: 'Alles tonen',
-  clear_all_environments: 'Wissen'
+  clear_all_environments: 'Wissen',
+  icon: 'Pictogram (optioneel)',
+  show_controls: 'Bedieningselementen weergeven (starten / stoppen / opnieuw starten)'
 };
 
 const pl: Record<EditorTranslationKey, string> = {
@@ -712,7 +726,9 @@ const pl: Record<EditorTranslationKey, string> = {
   content_section_heading: 'Zawartość',
   solo_this_environment: 'Pokaż tylko to środowisko',
   select_all_environments: 'Pokaż wszystko',
-  clear_all_environments: 'Wyczyść'
+  clear_all_environments: 'Wyczyść',
+  icon: 'Ikona (opcjonalnie)',
+  show_controls: 'Pokaż controllery (uruchom / zatrzymaj / uruchom ponownie)'
 };
 
 const pt: Record<EditorTranslationKey, string> = {
@@ -800,7 +816,9 @@ const pt: Record<EditorTranslationKey, string> = {
   content_section_heading: 'Conteúdo',
   solo_this_environment: 'Mostrar somente este ambiente',
   select_all_environments: 'Mostrar tudo',
-  clear_all_environments: 'Limpar'
+  clear_all_environments: 'Limpar',
+  icon: 'Ícone (opcional)',
+  show_controls: 'Mostrar controles (iniciar / parar / reiniciar)'
 };
 
 const sv: Record<EditorTranslationKey, string> = {
@@ -888,7 +906,9 @@ const sv: Record<EditorTranslationKey, string> = {
   content_section_heading: 'Innehåll',
   solo_this_environment: 'Visa endast den här miljön',
   select_all_environments: 'Visa alla',
-  clear_all_environments: 'Rensa'
+  clear_all_environments: 'Rensa',
+  icon: 'Ikon (valfritt)',
+  show_controls: 'Visa kontroller (start / stop / restart)'
 };
 
 const zhHans: Record<EditorTranslationKey, string> = {
@@ -976,7 +996,9 @@ const zhHans: Record<EditorTranslationKey, string> = {
   content_section_heading: '内容',
   solo_this_environment: '仅显示此环境',
   select_all_environments: '显示全部',
-  clear_all_environments: '清除'
+  clear_all_environments: '清除',
+  icon: '图标（可选',
+  show_controls: '显示控制选项（开始 / 停止 / 重新开始'
 };
 
 const LOCALES: Record<string, Record<EditorTranslationKey, string>> = {

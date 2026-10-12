@@ -22,6 +22,7 @@ export interface HaFormSelector {
     mode?: 'list' | 'dropdown' | 'box';
   };
   text?: Record<string, never>;
+  icon?: Record<string, never>;
   boolean?: Record<string, never>;
   /** Verified directly against HA frontend source
    * (src/data/selector.ts's EntityNameSelector) — see common/card-name.ts

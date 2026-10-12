@@ -76,7 +76,9 @@ export class DockhandContainerCardEditor extends LitElement implements LovelaceC
         title: t(this._hass, 'content_section_heading'),
         schema: [
           cardNameFieldSchema(this._config?.device_id && this._hass ? getRepresentativeEntityId(this._hass, this._config.device_id) : undefined, [{ type: 'device' }]),
+          { name: 'icon', selector: { icon: {} } },
           { name: 'show_settings_link', default: true, selector: { boolean: {} } },
+          { name: 'show_controls', default: true, selector: { boolean: {} } },
           {
             name: 'visible_sections',
             type: 'multi_select',
@@ -126,6 +128,10 @@ export class DockhandContainerCardEditor extends LitElement implements LovelaceC
         return t(this._hass, 'show_settings_link');
       case 'visible_sections':
         return t(this._hass, 'visible_sections_label');
+      case 'show_controls':
+        return t(this._hass, 'show_controls');
+      case 'icon':
+        return t(this._hass, 'icon');
       default:
         return schema.name;
     }
