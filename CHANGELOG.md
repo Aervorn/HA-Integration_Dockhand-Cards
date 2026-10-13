@@ -100,6 +100,11 @@ the Releases page.
 
 ### Internal
 
+- **README rewritten to match ha-dockhand's**: the Dockhand logo centered above a "Dockhand Cards
+  for Home Assistant" title, the same section order and separators, and plainer, user-focused
+  wording (implementation detail moved out to the docs it was duplicating). The logo
+  (`docs/brand/logo.png`) is a copy of ha-dockhand's `custom_components/dockhand/brand/logo.png`;
+  update both together if it ever changes.
 - **Automated test for the Updates card's busy buttons** (`card.dom.test.ts`): "Check for updates"
   and "Update all" show a spinner and are disabled while their request runs, ignore a second click,
   and recover after a failure. Previously only checked by hand. The same change stops a failed
