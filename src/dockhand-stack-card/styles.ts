@@ -4,20 +4,17 @@ import { sharedStyles } from '../common/shared-styles';
 export const cardStyles = css`
   ${sharedStyles}
 
-  .sync-status {
-    text-transform: capitalize;
-  }
   .sync-status.synced {
-    color: var(--dockhand-status-ok-color);
+    color: var(--dockhand-status-ok-text-color);
   }
   .sync-status.syncing {
-    color: var(--dockhand-status-info-color);
+    color: var(--dockhand-status-info-text-color);
   }
   .sync-status.pending {
     color: var(--secondary-text-color);
   }
   .sync-status.error {
-    color: var(--dockhand-status-error-color);
+    color: var(--dockhand-status-error-text-color);
   }
   .sync-error-banner {
     align-items: flex-start;

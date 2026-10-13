@@ -1,4 +1,5 @@
 import type { HomeAssistant as BaseHomeAssistant } from 'custom-card-helpers';
+import type { HassEntity } from 'home-assistant-js-websocket';
 
 // hass.devices / hass.entities were added to the frontend's HomeAssistant
 // object relatively recently and aren't part of custom-card-helpers' type
@@ -65,4 +66,8 @@ export interface HomeAssistant extends BaseHomeAssistant {
     type: string | EntityNameItem | EntityNameItem[] | undefined,
     options?: EntityNameOptions
   ): string;
+  /** Real, public HA API: an entity's state as HA itself would show it —
+   * translated (when the integration provides state translations) and
+   * number-formatted. Optional here only so test fixtures needn't stub it. */
+  formatEntityState?(stateObj: HassEntity, state?: string): string;
 }

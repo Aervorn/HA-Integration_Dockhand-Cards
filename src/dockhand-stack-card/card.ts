@@ -7,13 +7,15 @@ import type { HomeAssistant, LovelaceGridOptions, DeviceRegistryEntry } from '..
 import { getAllStackDevices, getEnvIdForStackDevice, getEnvDeviceForEnvId, getContainerDevicesForEnvironment, getRepresentativeEntityId } from '../common/device-utils';
 import { resolveCardName, migrateTitleToName } from '../common/card-name';
 import { resolveStackEntities, resolveContainerEntities, findPrimaryEntityByDomain, type ResolutionResult } from '../common/entity-resolver';
-import { STACK_STATUS_CLASS, type StackTranslationKey } from '../common/const';
+import { DEFAULT_STACK_ICON, STACK_STATUS_CLASS, type StackTranslationKey } from '../common/const';
 import { getDockhandBaseUrl, formatRelativeTime } from '../common/format';
+import { t } from '../common/i18n-card';
+import { stateLabel } from '../common/state-label';
 import { renderSettingsLink, renderIcon, onKeydownActivate } from '../common/icon';
-import { joinWithDividers } from '../common/section-join';
+import { joinWithDividers, mergeSections } from '../common/section-join';
+import { renderDeviceControls, resolveDeviceControls } from '../common/device-controls';
 import { DEFAULT_STACK_SECTIONS, type DockhandStackCardConfig } from './types';
 import { cardStyles } from './styles';
-import { DEFAULT_STACK_ICON } from '../common/const';
 
 const STATUS_ICON: Record<string, string> = {
   running: 'mdi:play-circle',
@@ -81,7 +83,7 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
       return html`<ha-card>
         <div class="card-message error">
           <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-          <span>Please select a Dockhand stack — edit this card to pick one.</span>
+          <span>${t(this._hass, 'msg_select_stack')}</span>
         </div>
       </ha-card>`;
     }
@@ -91,7 +93,7 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
       return html`<ha-card>
         <div class="card-message error">
           <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-          <span>Stack device not found. It may have been removed — edit this card to pick another.</span>
+          <span>${t(this._hass, 'msg_stack_not_found')}</span>
         </div>
       </ha-card>`;
     }
@@ -110,8 +112,9 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
     ]);
     const s = resolution.found;
     const representativeEntityId = getRepresentativeEntityId(this._hass, this._config.device_id);
-    const name = resolveCardName(this._hass, representativeEntityId, this._config.name, device.name_by_user || device.name || 'Stack');
+    const name = resolveCardName(this._hass, representativeEntityId, this._config.name, device.name_by_user || device.name || t(this._hass, 'name_stack'));
     const isGit = Boolean(s.gitSyncStatus);
+    const controls = resolveDeviceControls(this._hass, this._config.device_id, this._config.show_controls);
 
     return html`
       <ha-card>
@@ -122,7 +125,7 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
               <span class="truncate">${name}</span>
             </div>
             <div class="header-right">
-              <span class="label-pill">${s.status?.state.attributes.type || device.model || 'Stack'}</span>
+              <span class="label-pill">${stateLabel(this._hass, 'stack_type', s.status?.state.attributes.type || device.model || t(this._hass, 'name_stack'))}</span>
               ${renderSettingsLink({
                 hass: this._hass,
                 show: this._config?.show_settings_link,
@@ -132,17 +135,22 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
             </div>
           </div>
           <div class="divider"></div>
-          ${this._renderBody(s, isGit, device)}
+          ${this._renderBody(s, isGit, device, controls ? renderDeviceControls(this, this._hass, controls, name) : nothing)}
         </div>
       </ha-card>
     `;
   }
 
-  private _renderBody(s: ResolutionResult<StackTranslationKey>['found'], isGit: boolean, stackDevice: DeviceRegistryEntry): TemplateResult {
+  private _renderBody(
+    s: ResolutionResult<StackTranslationKey>['found'],
+    isGit: boolean,
+    stackDevice: DeviceRegistryEntry,
+    controlsContent: TemplateResult | typeof nothing
+  ): TemplateResult {
     if (!s.status) {
       return html`<div class="card-message warn">
         <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-        <span>This stack's status sensor isn't available yet.</span>
+        <span>${t(this._hass, 'msg_stack_status_missing')}</span>
       </div>`;
     }
 
@@ -161,7 +169,7 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
             @click=${() => this._moreInfo(s.status!.entityId)}
             @keydown=${onKeydownActivate(() => this._moreInfo(s.status!.entityId))}
           >
-            ${renderIcon({ baseClass: 'hero-word', colorClass: STACK_STATUS_CLASS[status] as 'ok' | 'warn' | 'error' | 'neutral' | undefined, icon: STATUS_ICON[status] ?? 'mdi:help-circle', text: status, static: true })}
+            ${renderIcon({ baseClass: 'hero-word', colorClass: STACK_STATUS_CLASS[status] as 'ok' | 'warn' | 'error' | 'neutral' | undefined, icon: STATUS_ICON[status] ?? 'mdi:help-circle', text: stateLabel(this._hass, 'stack_status', status, s.status!.state), static: true })}
           </div>
         `
       : nothing;
@@ -171,14 +179,14 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
             <div class="section">
               <div class="section-title">
                 <ha-icon icon="mdi:docker"></ha-icon>
-                <span>Containers</span>
+                <span>${t(this._hass, 'label_containers')}</span>
                 ${containerCount !== undefined ? html`<span class="section-title-value">${containerCount}</span>` : nothing}
               </div>
               <div class="label-row">
                 ${containerNames.map((name) => {
                   const info = containerInfo.get(name);
                   const updateIcon = info?.updateEntityId
-                    ? html`<ha-icon icon="mdi:arrow-up-circle" style="color:var(--dockhand-status-warn-color)" title="Update available"></ha-icon>`
+                    ? html`<ha-icon icon="mdi:arrow-up-circle" style="color:var(--dockhand-status-warn-color)" title=${t(this._hass, 'update_available')}></ha-icon>`
                     : nothing;
                   return info
                     ? html`<span
@@ -197,7 +205,7 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
         : nothing;
     const gitSyncContent = isGit && visible.has('git_sync') ? this._renderGitSection(s) : nothing;
 
-    return joinWithDividers([statusContent, containersContent, gitSyncContent]);
+    return joinWithDividers([mergeSections(statusContent, controlsContent), containersContent, gitSyncContent]);
   }
 
   /** Maps each container's raw Docker name (what `container_names` lists)
@@ -242,7 +250,7 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
 
     return html`
       <div class="section">
-        <div class="section-title"><ha-icon icon="mdi:source-branch"></ha-icon> Git sync</div>
+        <div class="section-title"><ha-icon icon="mdi:source-branch"></ha-icon> ${t(this._hass, 'label_git_sync')}</div>
         <div class="list">
         <div
           class="row clickable"
@@ -251,8 +259,8 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
           @click=${() => this._moreInfo(s.gitSyncStatus?.entityId)}
           @keydown=${onKeydownActivate(() => this._moreInfo(s.gitSyncStatus?.entityId))}
         >
-          ${renderIcon({ baseClass: 'row-icon', icon: SYNC_ICON[syncStatus] ?? 'mdi:source-branch', text: 'Status', static: true })}
-          <span class="sync-status ${syncStatus}">${syncStatus}</span>
+          ${renderIcon({ baseClass: 'row-icon', icon: SYNC_ICON[syncStatus] ?? 'mdi:source-branch', text: t(this._hass, 'label_status'), static: true })}
+          <span class="sync-status ${syncStatus}">${stateLabel(this._hass, 'git_sync_status', syncStatus, s.gitSyncStatus!.state)}</span>
         </div>
         ${s.gitLastSync
           ? html`
@@ -263,13 +271,13 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
                 @click=${() => this._moreInfo(s.gitLastSync?.entityId)}
                 @keydown=${onKeydownActivate(() => this._moreInfo(s.gitLastSync?.entityId))}
               >
-                ${renderIcon({ baseClass: 'row-icon', icon: 'mdi:clock-outline', text: 'Last sync', static: true })}
-                <span class="row-right">${formatRelativeTime(s.gitLastSync.state.state)}</span>
+                ${renderIcon({ baseClass: 'row-icon', icon: 'mdi:clock-outline', text: t(this._hass, 'label_last_sync'), static: true })}
+                <span class="row-right">${formatRelativeTime(s.gitLastSync.state.state, this._hass)}</span>
               </div>
             `
           : nothing}
         ${lastCommit
-          ? html`<div class="row">${renderIcon({ baseClass: 'row-icon', icon: 'mdi:source-commit', text: 'Commit', static: true })}<span class="row-right">${String(lastCommit).slice(0, 7)}</span></div>`
+          ? html`<div class="row">${renderIcon({ baseClass: 'row-icon', icon: 'mdi:source-commit', text: t(this._hass, 'label_commit'), static: true })}<span class="row-right">${String(lastCommit).slice(0, 7)}</span></div>`
           : nothing}
         </div>
         ${syncErrorOn
@@ -282,7 +290,7 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
                 @keydown=${onKeydownActivate(() => this._moreInfo(s.gitSyncError?.entityId))}
               >
                 <ha-icon icon="mdi:alert"></ha-icon>
-                <span>${errorMessage || 'The last sync/deploy attempt failed.'}</span>
+                <span>${errorMessage || t(this._hass, 'msg_git_sync_failed')}</span>
               </div>
             `
           : nothing}

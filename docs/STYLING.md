@@ -15,37 +15,88 @@ property for every pixel value.
 
 ## Theme hooks (CSS custom properties)
 
-Defined once, on every card's `:host`, with sensible defaults — override any of these in a theme
-(or in a specific dashboard/card via `card_mod`'s `style:` if you only want it in one place) and
-every card in this repo picks it up:
+Every color these cards show comes from a CSS custom property — none is fixed in the code — so a
+theme or card_mod can change any of them. Override them in a theme (or in one card via
+`card_mod`'s `style:`) and every card in this repo picks it up.
+
+### Home Assistant's own theme colors
+
+Where Home Assistant has a standard color for something, the cards use it directly, so a theme
+that changes HA's colors changes these cards the same way it changes every other card. Nothing
+dockhand-specific is needed:
+
+| HA property | Used for |
+|---|---|
+| `--primary-color` | Accent: the header badge, control buttons, "Update all", focus rings, editor links (through `--dockhand-accent-color`) |
+| `--success-color` | Running, healthy, synced, all-clear; start events (through `--dockhand-status-ok-color`) |
+| `--warning-color` | Paused, partial, update available; medium/high severity; change events (through `--dockhand-status-warn-color`) |
+| `--error-color` | Stopped, unhealthy, restarting, sync error; critical/high severity; stop events (through `--dockhand-status-error-color`) |
+| `--info-color` | In progress, e.g. git "syncing"; low severity; health events (through `--dockhand-status-info-color`) |
+| `--primary-text-color` | Normal text |
+| `--secondary-text-color` | De-emphasized text, neutral states, other events, hidden entries in editor lists |
+| `--text-primary-color` | Text on an accent-colored button ("Update all") |
+| `--divider-color` | Dividers and empty bar tracks |
+| `--card-background-color` | Chart tooltips and the gaps between disk-usage segments |
+
+### Dockhand's own colors
 
 | Property | Default | Used for |
 |---|---|---|
-| `--dockhand-accent-color` | `var(--primary-color)` | The header icon badge |
-| `--dockhand-status-ok-color` | `var(--success-color, #22c55e)` | Running/healthy/synced/all-clear states |
-| `--dockhand-status-warn-color` | `var(--warning-color, #f59e0b)` | Paused/partial/pending-update states |
-| `--dockhand-status-error-color` | `var(--error-color, #ef4444)` | Stopped/unhealthy/restarting/sync-error states |
-| `--dockhand-status-info-color` | `var(--info-color, #38bdf8)` | In-progress states (currently just git "syncing") |
-| `--dockhand-severity-critical-color` | `#ef4444` | Vulnerability card — critical findings |
-| `--dockhand-severity-high-color` | `#f97316` | Vulnerability card — high findings |
-| `--dockhand-severity-medium-color` | `#ca8a04` | Vulnerability card — medium findings |
-| `--dockhand-severity-low-color` | `#3b82f6` | Vulnerability card — low findings |
+| `--dockhand-accent-color` | `var(--primary-color)` | Accent color of these cards only |
+| `--dockhand-status-ok-color` | `var(--success-color, #43a047)` | Running/healthy/synced/all-clear states |
+| `--dockhand-status-warn-color` | `var(--warning-color, #ffa600)` | Paused/partial/pending-update states |
+| `--dockhand-status-error-color` | `var(--error-color, #db4437)` | Stopped/unhealthy/restarting/sync-error states |
+| `--dockhand-status-info-color` | `var(--info-color, #039be5)` | In-progress states (currently just git "syncing") |
+| `--dockhand-severity-critical-color` | `var(--dockhand-status-error-color)` | Vulnerability card — critical findings |
+| `--dockhand-severity-high-color` | error and warn colors mixed evenly | Vulnerability card — high findings (HA has no color between error and warning) |
+| `--dockhand-severity-medium-color` | `var(--dockhand-status-warn-color)` | Vulnerability card — medium findings |
+| `--dockhand-severity-low-color` | `var(--dockhand-status-info-color)` | Vulnerability card — low findings |
 
-The four status colors each default to HA's own native theme color (`--success-color`,
-`--warning-color`, `--error-color`, `--info-color`) — override those in your theme and every card
-here picks it up the same way any other HA card would, without needing dockhand-specific support
-for it. The `dockhand-status-*` name itself exists only so this repo's own many usage sites read
-`var(--dockhand-status-error-color)` once each, rather than repeating `var(--error-color, #ef4444)`
-(HA's own name plus this repo's own fallback) at every one of them — override
-`--dockhand-status-error-color` directly instead if you want a color specific to this card family
-without also changing HA's own error color everywhere else.
+All of these default to HA's colors above — the severity levels keep Dockhand's red, orange,
+yellow, blue order using HA's error, warning and info colors; override the `--dockhand-*` one instead
+only if you want a different color in these cards without changing HA's everywhere else. The
+fallback after the comma is used only if a theme doesn't define HA's property at all, and matches
+HA's default.
 
-Example, in a theme YAML:
+Each of these also has a **text version** — `--dockhand-accent-text-color`,
+`--dockhand-status-ok-text-color`, …, `--dockhand-severity-low-text-color` — used wherever the
+color is applied to words rather than an icon, bar or dot. They default to the color itself, so
+text matches the rest of Home Assistant; set them in a theme if you want higher-contrast words
+without changing icons.
+
+### Environment card
+
+Event icons use HA's status colors, grouped the way Dockhand groups actions. The rest have no
+Home Assistant equivalent, so their defaults are Dockhand's own colors.
+
+| Property | Default | Used for |
+|---|---|---|
+| `--dockhand-connection-socket-color` | `#22d3ee` | Header connection icon — local socket |
+| `--dockhand-connection-direct-color` | `#3b82f6` | Header connection icon — direct |
+| `--dockhand-connection-hawser-standard-color` | `#a855f7` | Header connection icon — Hawser standard |
+| `--dockhand-connection-hawser-edge-color` | `#22c55e` | Header connection icon — Hawser edge |
+| `--dockhand-event-start-color` | `var(--dockhand-status-ok-color)` | Event icon — create, start, unpause |
+| `--dockhand-event-stop-color` | `var(--dockhand-status-error-color)` | Event icon — stop, die, kill, destroy, out of memory |
+| `--dockhand-event-change-color` | `var(--dockhand-status-warn-color)` | Event icon — restart, pause, update, rename |
+| `--dockhand-event-health-color` | `var(--dockhand-status-info-color)` | Event icon — health status change |
+| `--dockhand-event-other-color` | `var(--secondary-text-color)` | Event icon — any other action |
+| `--dockhand-chart-cpu-color` | `#10b981` | CPU history chart |
+| `--dockhand-chart-memory-color` | `#3b82f6` | Memory history chart |
+| `--dockhand-disk-images-color` | `#0ea5e9` | Disk usage — images |
+| `--dockhand-disk-containers-color` | `#10b981` | Disk usage — containers |
+| `--dockhand-disk-volumes-color` | `#f59e0b` | Disk usage — volumes |
+| `--dockhand-disk-build-cache-color` | `#8b5cf6` | Disk usage — build cache |
+| `--dockhand-label-1-color` … `--dockhand-label-12-color` | Dockhand's label palette: `#ef4444`, `#f97316`, `#eab308`, `#22c55e`, `#14b8a6`, `#3b82f6`, `#8b5cf6`, `#ec4899`, `#06b6d4`, `#84cc16`, `#6366f1`, `#d946ef` | Environment label pills. Each label gets the same palette slot as in Dockhand; the pill's text is the color mixed toward `--primary-text-color` and its background the color at 15% |
+
+### Examples
+
+In a theme YAML:
 
 ```yaml
 my_theme:
   error-color: "#dc2626"
   dockhand-accent-color: "#8b5cf6"
+  dockhand-chart-cpu-color: "#22c55e"
 ```
 
 Or scoped to one card via card_mod:
@@ -57,13 +108,9 @@ card_mod:
   style: |
     :host {
       --dockhand-accent-color: #8b5cf6;
+      --dockhand-connection-socket-color: var(--primary-color);
     }
 ```
-
-What's deliberately **not** a custom property: the connection-type icon colors (socket/direct/
-Hawser) on the environment card header — those are fixed brand-style indicators for a specific
-connection kind, not a severity/status, so they don't belong in the same semantic set as the
-properties above. Override them with card_mod if you really want to (see below).
 
 ## card_mod hooks (stable class names)
 
@@ -93,6 +140,10 @@ useful ones:
 - `.hero-row` / `.hero-word` — a card's own single most prominent value, centered, larger text (a
   container's own state, a stack's own status) — `.hero-row` is the outer, padded row; `.hero-word`
   is the text/icon itself, independently clickable where it has a real entity to link to
+- `.fit-parts` — a value that drops pieces from the end when its line is too narrow (the memory
+  reading on the Container and Environment cards); each piece is a plain `span` inside it.
+- `.grid-2` / `.grid-2.stacked` — two rows side by side (Container's I/O, Environment's resource
+  counts); `.stacked` is added automatically when they don't fit, showing one per line.
 - `.row`, `.row-left`, `.row-right` — a card's own basic list row shape, content at both ends
   (`.row-left` the row's own icon+name, `.row-right` its own value or secondary label), used
   throughout every list-shaped card

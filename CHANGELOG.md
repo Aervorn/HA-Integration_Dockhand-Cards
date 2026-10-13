@@ -22,20 +22,110 @@ the Releases page.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-13
+
 ### Added
 
-- **Container card: start/stop/restart controls directly in the header.** Each icon calls the
-  same ha-dockhand `switch`/`button` entity an equivalent dashboard switch or button card
-  would — no new entities, no new API calls from the card itself, the same trust boundary every
-  other card in this repo already respects. Pressing one refreshes that container's entities
-  through ha-dockhand's own coordinator, so the state icon updates on its own. System containers
-  (Dockhand itself, a Hawser agent) get no controls. ha-dockhand deliberately doesn't create
-  those entities for them, so the controls simply don't appear. `show_controls: false` hides them
-  even on a regular container.
-- **Container and Stack cards: custom header icon.** Both cards have always hardcoded their own
-  header badge (`mdi:docker` for Container, `mdi:layers` for Stack). Both now accept an optional
-  `icon` field (a standard HA icon picker in the editor) overriding just that badge. Leaving it
-  unset keeps the existing default, so no config change is needed for anyone who doesn't want one.
+- **Container and Stack cards: start/stop/restart buttons**, in a row under the status. They use
+  the existing ha-dockhand running switch and restart button: start while stopped, stop and
+  restart while running, with a confirmation before stop or restart. System containers (Dockhand
+  itself, a Hawser agent) and stacks containing one don't get them. `show_controls: false` hides
+  the row.
+  The Stack card also gets its stack's Redeploy button (internal stacks) or Deploy / Sync from Git
+  button (git stacks), with the same label and icon ha-dockhand gives it, and a confirmation.
+- **Environment card: memory shows the total as well as the amount used**, e.g. "41.2% · 6.2 GB /
+  15.0 GB", the same layout as the Container card.
+- **Container and Stack cards: custom header icon.** A new optional `icon` option replaces the
+  default header badge (`mdi:docker` for Container, `mdi:layers` for Stack).
+- **Every color can now be changed by a theme or card_mod.** The Environment card's connection
+  icon, event icons, CPU/memory charts, disk-usage chart and label pills had fixed colors; each now
+  has a `--dockhand-*` custom property. The "Update all" button's text follows HA's
+  `--text-primary-color`. All are listed in `docs/STYLING.md`.
+- **All card text is now translated**, not just the editors: headings, labels, states (running,
+  healthy, synced…), stats, tooltips, messages and the Overview/suggested card names, in the same
+  languages as ha-dockhand (German, Spanish, French, Italian, Norwegian Bokmål, Dutch, Polish,
+  Portuguese, Swedish, Simplified Chinese). Where ha-dockhand already translates a state, the card
+  uses Home Assistant's own wording for it. Numbers, percentages and "5 min ago"-style times
+  follow your Home Assistant language and number format.
+
+### Changed
+
+- **Memory readings fit narrow cards.** On the Container and Environment cards, memory now reads
+  "8.1% · 41.5 MB / 512.0 MB" (was "8.1% (41.5 MB / 512.0 MB)"), and when the line is too narrow it
+  drops the total, then the amount used, instead of cutting the text off. The percentage always
+  shows, and the full reading is in the tooltip. (#22)
+- **Vulnerability severities and Environment event icons now use Home Assistant's status
+  colors**, so they match the rest of HA and follow your theme. Severities keep Dockhand's order:
+  critical uses HA's error color, high a mix of error and warning, medium warning, low info.
+  Events keep Dockhand's grouping: starts in success, stops in error, other changes in warning,
+  health changes in info, anything else in the secondary text color.
+
+### Fixed
+
+- **CPU, memory and I/O on a stopped container no longer show "NaN" or a full green bar.**
+  Readings with no current value are now hidden instead: the Container card shows just the
+  state, and the Containers list drops that row's CPU/memory badges. The Environment card does
+  the same when its environment's readings are unavailable. (#19)
+- **Container card: memory and network/block I/O sizes are now correct.** They were shown about a
+  million times too small (e.g. "343 B / 15.6 KB" for 343 MB of a 15.6 GB limit), because the
+  card ignored the unit Home Assistant reports these sensors in. It now converts from whatever
+  unit the sensor uses, including one you've chosen yourself in the entity settings. (#21)
+- **Overview card editor: an environment's Updates settings save again.** Changing that
+  environment's Updates name or "Hide when no updates" did nothing (an error in the browser
+  console). The Updates section now uses the Updates card's own editor, like every other section.
+- **Overview card editor: per-environment and section settings pick up Home Assistant changes
+  while open**, such as a language change, instead of only when first opened.
+- **The Vulnerability card no longer reports "No vulnerabilities found" when it has no data.**
+  If fetching the scan results fails, or no scan has run yet, it now says the data isn't
+  available.
+- **Environment label pills are easier to read.** Their text met as little as 2.5:1 contrast in a
+  light theme; it now meets WCAG AA (4.5:1) in HA's light and dark themes while keeping each
+  label's Dockhand color. Hidden entries in the editors' lists also stay readable now (secondary
+  text color rather than half-transparent).
+- **The visual editor no longer risks loading an outdated version after an update.** Its file
+  didn't carry HACS's version tag, so a browser could keep using the previous release's editor
+  with the new cards until its cache expired. It now uses the same tag as the card file.
+- **Manual install instructions now include the editor file.** They listed only
+  `ha-dockhand-cards.js`, so a manual install had no visual editors. The README now lists both
+  files and how to update them.
+- **Paired rows no longer overlap on narrow cards.** The Container card's network/block I/O and the
+  Environment card's image/stack/volume/network counts sit two to a line; on a card too narrow for
+  that, their values ran into each other. They now drop to one per line when they don't fit.
+- **Keyboard and screen-reader fixes:** list rows on the Containers and Stacks cards, and the
+  Vulnerability card, no longer nest one button inside another (which screen readers announce
+  confusingly); the CPU/memory history charts and disk-usage chart are skipped by screen readers,
+  since the same values are shown as text beside them.
+- **Updates card: "update-pending" no longer appears as a version.** When ha-dockhand knows an
+  update exists but not its version, the card says "Update available".
+
+### Internal
+
+- **Automated test for the Updates card's busy buttons** (`card.dom.test.ts`): "Check for updates"
+  and "Update all" show a spinner and are disabled while their request runs, ignore a second click,
+  and recover after a failure. Previously only checked by hand. The same change stops a failed
+  request from also logging an unhandled-rejection error (HA already shows the error toast).
+- Updated `eslint` (10.11.0 → 10.12.0), `rollup` (4.63.4 → 4.64.5), `vitest` (5.0.1 → 5.0.4), and
+  `@typescript-eslint/parser` and `@typescript-eslint/eslint-plugin` (8.70.1 → 8.71.1, kept in
+  step), plus a lockfile-only `npm audit fix` for advisories in `brace-expansion` and
+  `source-map-js` (pulled in by eslint, jsdom and vite). All development-only; both built bundles
+  are byte-identical before and after.
+- **Tests run in plain Node by default instead of jsdom.** Creating a jsdom for every test file
+  was ~90% of the test run time (about 20s → 7s now). Test files that render into the DOM opt
+  back in with a `// @vitest-environment jsdom` line at the top; any new one needs the same line.
+- **Screenshot harness mock data now matches what Home Assistant actually reports**: data-size
+  sensors are in MiB (HA's converted state), not raw bytes, which is why #21 never showed up in
+  screenshots; stats sensors are `unavailable` for a stopped container; and containers and stacks
+  have their running switch, restart button and (stacks) deploy button. A stopped `backup`
+  container was added to show #19's case.
+- **Automated accessibility check** (`tools/screenshot-harness/a11y.py`): runs axe-core's WCAG 2.1
+  A/AA rules over every card (plus states the screenshots don't show) and every editor, in both
+  themes, and fails on any violation. It found the contrast and nested-button problems above. Text
+  in Home Assistant's own theme colors is excused, since the cards use those unchanged on purpose.
+  The harness now uses HA's real default primary and status colors, and the cards' fallback
+  status colors (used only if a theme doesn't define them) now match HA's defaults too.
+- **Translations are checked by test:** every locale must have every key, non-empty, with the same
+  `{placeholders}` as English. State words go through one helper (`stateLabel`) that prefers Home
+  Assistant's translation of an entity's state and falls back to this repo's own.
 
 ## [1.3.2] - 2026-09-24
 
@@ -442,7 +532,8 @@ so a user's own icon customization is reflected automatically.
   from `hass.language`. Custom mode's section-checkbox labels specifically are English-only for
   now — see `docs/BACKLOG.md`.
 
-[Unreleased]: https://github.com/raetha/ha-dockhand-cards/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/raetha/ha-dockhand-cards/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/raetha/ha-dockhand-cards/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/raetha/ha-dockhand-cards/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/raetha/ha-dockhand-cards/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/raetha/ha-dockhand-cards/compare/v1.2.1...v1.3.0

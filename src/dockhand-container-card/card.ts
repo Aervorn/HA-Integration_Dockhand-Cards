@@ -9,9 +9,14 @@ import { resolveCardName, migrateTitleToName } from '../common/card-name';
 import { resolveContainerEntities, findPrimaryEntityByDomain, type ResolutionResult } from '../common/entity-resolver';
 import { joinWithDividers, mergeSections } from '../common/section-join';
 import type { ContainerTranslationKey } from '../common/const';
-import { barColorClass, formatBytes, getDockhandBaseUrl } from '../common/format';
+import { barColorClass, bytesState, formatBytes, formatPercent, getDockhandBaseUrl, memoryParts, numericState } from '../common/format';
+import { renderFitParts } from '../common/fit-parts';
+import { PairGridController } from '../common/pair-grid';
+import { t } from '../common/i18n-card';
+import { stateLabel } from '../common/state-label';
 import { renderSettingsLink, renderIcon, onKeydownActivate } from '../common/icon';
-import { CONTAINER_STATE_CLASS, HEALTH_ICON, HEALTH_STATUS_CLASS, DEFAULT_CONTAINERS_ICON } from '../common/const';
+import { CONTAINER_STATE_CLASS, HEALTH_ICON, HEALTH_STATUS_CLASS, DEFAULT_CONTAINER_ICON, UPDATE_PENDING_VERSION } from '../common/const';
+import { renderDeviceControls, resolveDeviceControls } from '../common/device-controls';
 import { DEFAULT_CONTAINER_SECTIONS, type DockhandContainerCardConfig } from './types';
 import { cardStyles } from './styles';
 
@@ -25,6 +30,11 @@ const STATE_ICON: Record<string, string> = {
 };
 
 export class DockhandContainerCard extends LitElement implements LovelaceCard {
+  constructor() {
+    super();
+    new PairGridController(this);
+  }
+
   static styles = cardStyles;
 
   @state() private _config?: DockhandContainerCardConfig;
@@ -76,7 +86,7 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
       return html`<ha-card>
         <div class="card-message error">
           <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-          <span>Please select a Dockhand container — edit this card to pick one.</span>
+          <span>${t(this._hass, 'msg_select_container')}</span>
         </div>
       </ha-card>`;
     }
@@ -86,7 +96,7 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
       return html`<ha-card>
         <div class="card-message error">
           <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-          <span>Container device not found. It may have been removed — edit this card to pick another.</span>
+          <span>${t(this._hass, 'msg_container_not_found')}</span>
         </div>
       </ha-card>`;
     }
@@ -110,12 +120,10 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
     ]);
     const s = resolution.found;
     const representativeEntityId = getRepresentativeEntityId(this._hass, this._config.device_id);
-    const name = resolveCardName(this._hass, representativeEntityId, this._config.name, device.name_by_user || device.name || 'Container');
+    const name = resolveCardName(this._hass, representativeEntityId, this._config.name, device.name_by_user || device.name || t(this._hass, 'name_container'));
     const image = s.state?.state.attributes.image as string | undefined;
     const update = findPrimaryEntityByDomain(this._hass, this._config.device_id, 'update');
-    const runningSwitch = findPrimaryEntityByDomain(this._hass, this._config.device_id, 'switch');
-    const restartResolution = resolveContainerEntities(this._hass, this._config.device_id, ['restart']);
-    const restartButton = restartResolution.found.restart;
+    const controls = resolveDeviceControls(this._hass, this._config.device_id, this._config.show_controls);
     const updatePending = update?.state.state === 'on';
 
     return html`
@@ -123,46 +131,22 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
         <div class="body">
           <div class="card-header">
             <div class="header-left">
-              ${renderIcon({ baseClass: 'card-badge', icon: this._config.icon || DEFAULT_CONTAINERS_ICON, static: true })}
+              ${renderIcon({ baseClass: 'card-badge', icon: this._config.icon || DEFAULT_CONTAINER_ICON, static: true })}
               <div class="stacked-pair">
                 <span class="truncate">${name}</span>
                 ${image ? html`<span class="card-subheader truncate">${image}</span>` : nothing}
               </div>
             </div>
             <div class="header-right">
-              ${this._config.show_controls !== false && runningSwitch
-                ? html`
-                    ${runningSwitch.state.state === 'on'
-                      ? renderIcon({
-                          baseClass: 'header-icon',
-                          icon: 'mdi:stop',
-                          title: 'Stop',
-                          onClick: () => this._callService('switch', 'turn_off', runningSwitch.entityId)
-                        })
-                      : renderIcon({
-                          baseClass: 'header-icon',
-                          icon: 'mdi:play',
-                          title: 'Start',
-                          onClick: () => this._callService('switch', 'turn_on', runningSwitch.entityId)
-                        })}
-                    ${restartButton
-                      ? renderIcon({
-                          baseClass: 'header-icon',
-                          icon: 'mdi:restart',
-                          title: 'Restart',
-                          onClick: () => this._callService('button', 'press', restartButton.entityId)
-                        })
-                      : nothing}
-                  `
-                : nothing}
               ${updatePending
                 ? renderIcon({
                     baseClass: 'header-icon',
                     icon: 'mdi:package-up',
                     colorClass: 'warn',
-                    title: update?.state.attributes.latest_version
-                      ? `Update available: ${update.state.attributes.installed_version ?? '?'} → ${update.state.attributes.latest_version}`
-                      : 'Update available',
+                    title:
+                      update?.state.attributes.latest_version && update.state.attributes.latest_version !== UPDATE_PENDING_VERSION
+                        ? t(this._hass, 'update_available_versions', { from: update.state.attributes.installed_version ?? '?', to: update.state.attributes.latest_version })
+                      : t(this._hass, 'update_available'),
                     onClick: () => this._moreInfo(update?.entityId)
                   })
                 : nothing}
@@ -175,17 +159,17 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
             </div>
           </div>
           <div class="divider"></div>
-          ${this._renderBody(s)}
+          ${this._renderBody(s, controls ? renderDeviceControls(this, this._hass, controls, name) : nothing)}
         </div>
       </ha-card>
     `;
   }
 
-  private _renderBody(s: ResolutionResult<ContainerTranslationKey>['found']): TemplateResult {
+  private _renderBody(s: ResolutionResult<ContainerTranslationKey>['found'], controlsContent: TemplateResult | typeof nothing): TemplateResult {
     if (!s.state) {
       return html`<div class="card-message warn">
         <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-        <span>This container's state sensor isn't available yet.</span>
+        <span>${t(this._hass, 'msg_container_state_missing')}</span>
       </div>`;
     }
 
@@ -200,7 +184,7 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
               baseClass: 'hero-word',
               colorClass: CONTAINER_STATE_CLASS[state] as 'ok' | 'warn' | 'error' | 'neutral' | undefined,
               icon: STATE_ICON[state] ?? 'mdi:help-circle',
-              text: state,
+              text: stateLabel(this._hass, 'container_state', state, s.state.state),
               onClick: () => this._moreInfo(s.state!.entityId)
             })}
             ${health
@@ -208,7 +192,7 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
                   baseClass: 'hero-word health-chip',
                   colorClass: HEALTH_STATUS_CLASS[health] as 'ok' | 'warn' | 'error' | undefined,
                   icon: HEALTH_ICON[health] ?? 'mdi:heart-outline',
-                  title: health,
+                  title: stateLabel(this._hass, 'health', health, s.health?.state),
                   onClick: () => this._moreInfo(s.health?.entityId)
                 })
               : nothing}
@@ -218,15 +202,15 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
     const metricsContent = visible.has('metrics') ? this._renderMetrics(s) : nothing;
     const ioContent = visible.has('io') ? this._renderIo(s) : nothing;
 
-    return joinWithDividers([stateContent, mergeSections(metricsContent, ioContent)]);
+    return joinWithDividers([mergeSections(stateContent, controlsContent), mergeSections(metricsContent, ioContent)]);
   }
 
   private _renderMetrics(s: ResolutionResult<ContainerTranslationKey>['found']): TemplateResult | typeof nothing {
-    if (!s.cpuPercent && !s.memoryPercent) return nothing;
-    const cpu = s.cpuPercent ? Number(s.cpuPercent.state.state) : undefined;
-    const mem = s.memoryPercent ? Number(s.memoryPercent.state.state) : undefined;
-    const memUsed = s.memoryUsage ? Number(s.memoryUsage.state.state) : undefined;
-    const memLimit = s.memoryLimit ? Number(s.memoryLimit.state.state) : undefined;
+    const cpu = numericState(s.cpuPercent?.state.state);
+    const mem = numericState(s.memoryPercent?.state.state);
+    if (cpu === undefined && mem === undefined) return nothing;
+    const memUsed = bytesState(s.memoryUsage?.state);
+    const memLimit = bytesState(s.memoryLimit?.state);
 
     return html`
       <div class="section">
@@ -240,8 +224,8 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
                   @click=${() => this._moreInfo(s.cpuPercent?.entityId)}
                   @keydown=${onKeydownActivate(() => this._moreInfo(s.cpuPercent?.entityId))}
                 >
-                  ${renderIcon({ baseClass: 'row-icon', hass: this._hass, stateObj: s.cpuPercent!.state, text: 'CPU', static: true })}
-                  <span class="row-right">${cpu.toFixed(1)}%</span>
+                  ${renderIcon({ baseClass: 'row-icon', hass: this._hass, stateObj: s.cpuPercent!.state, text: t(this._hass, 'label_cpu'), static: true })}
+                  <span class="row-right">${formatPercent(cpu, this._hass)}</span>
                 </div>
                 <div class="bar-track"><div class="bar-fill ${barColorClass(cpu)}" style="width:${Math.min(cpu, 100)}%"></div></div>
               </div>
@@ -257,13 +241,8 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
                   @click=${() => this._moreInfo(s.memoryPercent?.entityId)}
                   @keydown=${onKeydownActivate(() => this._moreInfo(s.memoryPercent?.entityId))}
                 >
-                  ${renderIcon({ baseClass: 'row-icon', hass: this._hass, stateObj: s.memoryPercent!.state, text: 'Memory', static: true })}
-                  <span class="row-right">
-                    ${mem.toFixed(1)}%
-                    ${memUsed !== undefined
-                      ? html`(${formatBytes(memUsed)}${memLimit ? ` / ${formatBytes(memLimit)}` : ''})`
-                      : nothing}
-                  </span>
+                  ${renderIcon({ baseClass: 'row-icon', hass: this._hass, stateObj: s.memoryPercent!.state, text: t(this._hass, 'label_memory'), static: true })}
+                  ${renderFitParts(memoryParts(mem, memUsed, memLimit, this._hass))}
                 </div>
                 <div class="bar-track"><div class="bar-fill ${barColorClass(mem)}" style="width:${Math.min(mem, 100)}%"></div></div>
               </div>
@@ -275,12 +254,15 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
 
   private _renderIo(s: ResolutionResult<ContainerTranslationKey>['found']): TemplateResult | typeof nothing {
     const items: { icon: string; label: string; entry: ResolutionResult<ContainerTranslationKey>['found'][ContainerTranslationKey] }[] = [
-      { icon: 'mdi:download-network', label: 'Network RX', entry: s.networkRx },
-      { icon: 'mdi:upload-network', label: 'Network TX', entry: s.networkTx },
-      { icon: 'mdi:database-arrow-down', label: 'Block read', entry: s.blockRead },
-      { icon: 'mdi:database-arrow-up', label: 'Block write', entry: s.blockWrite }
+      { icon: 'mdi:download-network', label: t(this._hass, 'label_network_rx'), entry: s.networkRx },
+      { icon: 'mdi:upload-network', label: t(this._hass, 'label_network_tx'), entry: s.networkTx },
+      { icon: 'mdi:database-arrow-down', label: t(this._hass, 'label_block_read'), entry: s.blockRead },
+      { icon: 'mdi:database-arrow-up', label: t(this._hass, 'label_block_write'), entry: s.blockWrite }
     ];
-    const available = items.filter((i) => i.entry);
+    const available = items.flatMap((i) => {
+      const bytes = bytesState(i.entry?.state);
+      return i.entry && bytes !== undefined ? [{ ...i, bytes }] : [];
+    });
     if (available.length === 0) return nothing;
 
     return html`
@@ -295,7 +277,7 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
               @keydown=${onKeydownActivate(() => this._moreInfo(item.entry?.entityId))}
             >
               ${renderIcon({ baseClass: 'row-icon', icon: item.icon, text: item.label, static: true })}
-              <span class="row-right">${formatBytes(Number(item.entry!.state.state))}</span>
+              <span class="row-right">${formatBytes(item.bytes, this._hass)}</span>
             </div>
           `
         )}
@@ -303,7 +285,4 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
     `;
   }
 
-  private _callService(domain: string, service: string, entityId: string): void {
-    this._hass?.callService(domain, service, { entity_id: entityId });
-  }
 }

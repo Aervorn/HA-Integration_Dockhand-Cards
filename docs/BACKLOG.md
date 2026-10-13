@@ -24,75 +24,23 @@ gotchas (not "this got fixed", but "here's a pattern worth remembering") belong 
   The header currently shows a fixed generic icon instead — documented at the render site as a
   known gap, not an attempted match.
 
-## Stack / Container cards
-
-Shipped as a first pass with no direct Dockhand UI to model against (Dockhand only shows this
-level of detail on full detail pages). Raetha has floated possibly eliminating these singular
-cards later if they turn out low-value once the plural Stacks/Containers cards and the Overview
-card are in regular use — not decided, just flagged so a future session doesn't assume they're
-permanent.
-
-- **Action buttons.** Both cards are still read-only display + more-info click-through.
-  `findPrimaryEntityByDomain()` in `entity-resolver.ts` already implements the domain-based
-  lookup these actions would need (container/stack running switch, container update-install, git
-  stack deploy button — all `has_entity_name=True` with no `translation_key` by design), so
-  there's no technical blocker left. What's open is purely whether these two specific cards
-  should gain write actions at all, not how.
-
-## Updates card
-
-- **No automated test covers the `_checking`/`_triggering` → class/disabled/spin behavior** on
-  the "Check for updates"/"Update all" buttons (converted from `ha-button` to `renderIcon()` this
-  cycle). Verified thoroughly by hand via direct browser automation — forcing each state and
-  confirming the right CSS classes, the spin animation, and `tabindex` removal — but that
-  verification isn't captured as a real, repeatable test. `card.test.ts`'s own existing tests only
-  cover pure, exported functions (`sortPendingUpdates`, `shouldShowEnvironmentGroup`); this is
-  DOM/private-state behavior, which doesn't fit that pattern directly and would need a different
-  kind of test (closer to `icon.test.ts`'s own `render()`-based approach) to cover properly.
-  Deferred specifically to avoid taking on a new testing pattern while trying to get this release
-  out — not a decision that it isn't worth testing. Should be picked up for the next cycle: "if it
-  can be tested, it should be" is the standing bar, this is just behind schedule against it.
-
-- **`hide_when_no_updates` could become mode-aware, letting Overview embed the standard editor
-  the same way it already does for Stacks/Containers/Schedules.** Currently blocked by the
-  visibility mechanism itself, not anything Overview-specific: the standalone Updates card's own
-  `hide_when_no_updates` sets HA's native card-level `visibility:` config field, which only works
-  for a real, standalone Lovelace card HA's dashboard directly manages — it can't reach an
-  instance mounted inside another card's own shadow DOM. Overview already works around this today
-  by fully embedding `<dockhand-updates-card>` directly (confirmed — it's not a lighter summary
-  view, it's the real card) and maintaining its own separate `updates_hide_when_no_updates` field,
-  which hides the embedded instance via plain JS conditional rendering (not including the element
-  in the template at all when there's nothing pending) rather than through `visibility:`. That
-  works, but it's a duplicate field living on the wrong card, and it's why Updates can't yet use
-  `_mountGlobalEditor`'s embeddable-editor pattern the way Stacks/Containers/Schedules do — the
-  standard Updates editor still assumes the standalone, `visibility:`-based behavior.
-
-  The fix Raetha's proposed: give Updates' own config two versions of "hide when no updates" —
-  one using `visibility:` for the standalone case (unchanged), one using the plain-conditional
-  approach Overview already implements, with the card itself deciding which applies based on
-  whether it's been mounted with `cardIsEmbedded` (i.e., embedded) or not. Once that split
-  exists, Overview's own `updates_hide_when_no_updates` field and its hand-rolled conditional in
-  `_renderUpdates`'s `updates` section renderer can both be deleted in favor of routing straight
-  through to the embedded card's own config, the same way every other embedded section already
-  works (see `_renderColumn`'s own `updates` section renderer in `dockhand-overview-card/card.ts`
-  for where that hand-rolled conditional currently lives). Deferred to the version after this
-  one, not because of any remaining uncertainty about the approach — just triaged behind other
-  work for this cycle.
-
 ## Cross-card
 
 - **Real-browser / screen-reader verification** of the keyboard interaction pattern (`tabindex`
   + `role="button"` + `@keydown` on non-`<button>` elements) — implemented per WAI-ARIA guidance
-  but not yet manually verified against NVDA/VoiceOver.
+  and checked automatically by `tools/screenshot-harness/a11y.py`, but not yet manually verified
+  against NVDA/VoiceOver, which is what tells you whether the cards actually make sense read
+  aloud.
 
-- **Translation coverage is mostly editor-only (v1.1).** `src/common/i18n-editor.ts` covers field
-  labels, section headings, and mode-description hints across all editors, same 11 locales as
-  ha-dockhand. `src/common/i18n-card.ts` covers the small set of card-runtime keys (each card's
-  "Open in Dockhand"-style link tooltip and equivalents — 9 keys total). Everything else
-  live-card-rendered (e.g. "Images", "CPU", "Events", health/status words) is still English-only —
-  a much larger string set spread across every card's render methods, not just editors. Extending
-  coverage there is mechanical but sizable; do it incrementally, same discipline as ha-dockhand
-  (translate a string into every locale the same pass it's added, never leave one partially stale).
+- **Contrast of Home Assistant's own colors.** Status text, icons and buttons use HA's theme
+  colors unchanged (deliberately — see CONTRIBUTING's Accessibility section), and several fall
+  below WCAG AA in HA's default light theme (warning orange is under 2:1 on white). That's for
+  themes to solve, and `a11y.py` excuses it. Revisit only if HA changes its defaults or a user
+  reports a case a theme can't fix.
+
+- **Entity names from ha-dockhand are shown as Home Assistant gives them.** The control buttons'
+  Redeploy / Sync from Git labels and similar come from the entity's own name, so they're only
+  translated where ha-dockhand translates that entity.
 
 - **Vulnerability findings list/table card** — the summary card shows aggregate counts only,
   matching what's cheap to poll (`/api/vulnerabilities/count`). A full findings list would need a
@@ -123,23 +71,13 @@ permanent.
   a page reload, and works around a missing HA feature rather than using a real one. Revisit only
   if HA ever adds native support.
 
-- **Overview card's embedded per-environment override editors don't refresh `hass` after mount.**
-  `_mountEditor()`'s `ref()` callback (editor.ts) sets `.hass` once, when the detail view for a
-  given environment first mounts (see the `keyed()` wrapper forcing a fresh mount per
-  environment). If `hass` updates while that same detail view stays open — e.g. the user changes
-  HA's UI language mid-edit — the embedded editor won't pick up the new value until the user
-  navigates away and back (or switches environments). Low practical impact: the only thing these
-  embedded editors read `hass` for once `cardIsEmbedded` is true is `t()` for label text, and
-  changing UI language mid-edit is a rare scenario. Fix would mean re-pushing `.hass` to whichever
-  section editor is currently mounted on every parent update, not just at mount time.
-
-- **`ha-form`'s `visible:` conditional-field-visibility isn't used yet.** Merged into HA's frontend
-  `dev` branch 2026-07-17; not in any released HA version as of this writing (checked directly
-  against `homeassistant/components/frontend/manifest.json` in HA core's own repo — even 2026.7.4,
-  the latest release, predates it). The one field that needs conditional visibility (Environment
-  card's `custom_sections`) currently achieves it by conditionally including/excluding the schema
-  entry in plain JS instead — see `docs/ARCHITECTURE.md` §2. Switch that over to real `visible:`
-  once it ships in a released HA version this repo's floor actually covers, and only then.
+- **`ha-form`'s `visible:` conditional-field-visibility isn't used yet.** First released in HA
+  2026.8 (frontend 20260729.0 — confirmed in `ha-form.ts`/`types.ts` at that tag), above this repo's
+  2026.6 floor. The one field that needs conditional visibility (Environment card's
+  `custom_sections`) achieves it by conditionally including/excluding the schema entry in plain JS
+  instead — see `docs/ARCHITECTURE.md` §2 — which works fine. Not worth raising the floor for on its
+  own (dropping 2026.6/2026.7 support is a major change under `docs/SEMVER.md`); switch over
+  whenever the floor reaches 2026.8 for some other reason.
 
 - **Remove `environment_overrides`/`environment_order` backward compatibility.** Renamed to
   `environments_overrides`/`environments_order` in 1.1.0 (see CHANGELOG) — the deprecated fields
@@ -147,31 +85,14 @@ permanent.
   in `dockhand-overview-card/types.ts` still fall back to them for reading, and the editor's
   `migrateOverviewConfig()` still normalizes them away on load. This was done specifically while
   ha-dockhand-cards has very close to zero real users (1.0.0 had just shipped, no stars, no visible
-  adoption) — safe to fully remove once that's no longer true. Target: no earlier than 2 releases
-  after 1.1.0 actually ships, or ~2 months after that release, whichever is later — check with
-  Raetha before removing rather than assuming the window has passed. Removal means: delete both
-  deprecated fields from the config interface, delete the fallback branch in each accessor
-  function (leaving them as trivial `config?.environments_overrides` one-liners — at that point
-  worth asking whether keeping them as functions at all is still justified, or whether reading the
-  field directly everywhere is simpler once there's no migration logic left to centralize), and
+  adoption). **Target: 2.0.0.** Removing the fallback is a major change under `docs/SEMVER.md`, and
+  Raetha decided (Oct 2026, after 1.3.2) to defer it to the next major rather than make a policy
+  exception — not because any real configs are expected to still use the old keys. Removal means:
+  delete both deprecated fields from the config interface, delete the fallback branch in each
+  accessor function (leaving them as trivial `config?.environments_overrides` one-liners — at that
+  point worth asking whether keeping them as functions at all is still justified, or whether reading
+  the field directly everywhere is simpler once there's no migration logic left to centralize), and
   delete `migrateOverviewConfig()` and its call in the editor's `setConfig()`.
-
-- **Deriving Overview's flat global-default fields via a mapped type — considered, not worth it.**
-  `stacks_visible_badges`, `environment_show_settings_link`, and the rest are hand-declared on
-  `DockhandOverviewCardConfig`, even though every one of them is mechanically
-  `${prefix}_${fieldName}` of some field on the corresponding standalone card's config (the same
-  observation that led to deriving `EnvironmentOverrideStacks` etc. via `Omit<...>` — see
-  `docs/ARCHITECTURE.md` §3). In principle a template-literal mapped type
-  (`{[K in keyof T as \`${P}_${K}\`]: T[K]}`) could derive these the same way, so a new field on one
-  of the 5 reused cards would need nothing added here either. Not implemented: unlike the
-  `EnvironmentOverride*` case, there's no live bug motivating it — `_globalEditorConfig`'s runtime
-  prefix scan already picks up a new field regardless of whether it's declared on the type, so the
-  gap is purely a compile-time completeness one, not a correctness one. And the cost is real, not
-  hypothetical: a mapped type like this typically shows an IDE's hover tooltip the fully computed,
-  unfriendly shape instead of a clean named type, which is a genuine readability tax on every
-  future person (including future Claude) who inspects `DockhandOverviewCardConfig` while working
-  in this file. Revisit only if a real motivating reason shows up (e.g. the hand-declared fields
-  actually drift out of sync with a card's config in practice) — not simply because it's possible.
 
 - **A single-environment Overview card given extra dashboard width (e.g. spanning 3 grid columns)
   currently just stretches, rather than spreading its sections out to use the width.** Confirmed

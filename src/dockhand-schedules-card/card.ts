@@ -14,6 +14,7 @@ import {
 import { resolveCardName, multiEnvCardNameFallback } from '../common/card-name';
 import { resolveScheduleEntities } from '../common/entity-resolver';
 import { getDockhandBaseUrl, getInstanceLabel, formatRelativeTime } from '../common/format';
+import { stateLabel } from '../common/state-label';
 import { renderSettingsLink, renderIcon, onKeydownActivate } from '../common/icon';
 import { resolveIncludedOrdered, groupRowsByEnvironment, resolveEffectiveGroupBy } from '../common/environment-scope';
 import { t } from '../common/i18n-card';
@@ -144,12 +145,30 @@ export function resolveGlobalInstanceLabels(
   return labels;
 }
 
-function groupKeyAndLabel(row: ScheduleRow, groupBy: 'type' | 'status'): { key: string; label: string } {
-  if (groupBy === 'type') return { key: row.type, label: humanizeType(row.type) };
+/** Text for the group headers groupScheduleRows produces. The default is
+ * plain English; the card passes translated versions. */
+export interface ScheduleGroupLabels {
+  type: (type: string) => string;
+  status: (status: string) => string;
+  disabled: string;
+  neverRun: string;
+  global: string;
+}
+
+const ENGLISH_GROUP_LABELS: ScheduleGroupLabels = {
+  type: humanizeType,
+  status: humanizeType,
+  disabled: 'Disabled',
+  neverRun: 'Never run',
+  global: 'Global'
+};
+
+function groupKeyAndLabel(row: ScheduleRow, groupBy: 'type' | 'status', labels: ScheduleGroupLabels): { key: string; label: string } {
+  if (groupBy === 'type') return { key: row.type, label: labels.type(row.type) };
   // status
-  if (!row.enabled) return { key: 'disabled', label: 'Disabled' };
-  if (!row.status) return { key: 'never_run', label: 'Never run' };
-  return { key: row.status, label: humanizeType(row.status) };
+  if (!row.enabled) return { key: 'disabled', label: labels.disabled };
+  if (!row.status) return { key: 'never_run', label: labels.neverRun };
+  return { key: row.status, label: labels.status(row.status) };
 }
 
 // Group ordering for group_by: 'status' — attention-first, same idea as
@@ -167,7 +186,8 @@ export function groupScheduleRows(
   rows: ScheduleRow[],
   groupBy: ScheduleGroupBy | undefined,
   sortBy: ScheduleSortBy,
-  envDevices: EnvironmentDeviceOption[] = []
+  envDevices: EnvironmentDeviceOption[] = [],
+  labels: ScheduleGroupLabels = ENGLISH_GROUP_LABELS
 ): { label: string | null; rows: ScheduleRow[] }[] {
   if (!groupBy || groupBy === 'none') return [{ label: null, rows: sortScheduleRows(rows, sortBy) }];
 
@@ -188,13 +208,13 @@ export function groupScheduleRows(
     // environments happen to sort near "Global".
     const globalRows = rows.filter((r) => r.environmentDeviceId === undefined);
     const envGroups = groupRowsByEnvironment(rows, envDevices, (bucketRows) => sortScheduleRows(bucketRows, sortBy));
-    const globalGroup = globalRows.length > 0 ? [{ label: 'Global', rows: sortScheduleRows(globalRows, sortBy) }] : [];
+    const globalGroup = globalRows.length > 0 ? [{ label: labels.global, rows: sortScheduleRows(globalRows, sortBy) }] : [];
     return [...globalGroup, ...envGroups];
   }
 
   const buckets = new Map<string, { label: string; rows: ScheduleRow[] }>();
   for (const row of rows) {
-    const { key, label } = groupKeyAndLabel(row, groupBy);
+    const { key, label } = groupKeyAndLabel(row, groupBy, labels);
     if (!buckets.has(key)) buckets.set(key, { label, rows: [] });
     buckets.get(key)!.rows.push(row);
   }
@@ -342,7 +362,7 @@ export class DockhandSchedulesCard extends LitElement implements LovelaceCard {
     // common/card-name.ts for the shared resolver every card's Name
     // field now uses the same way.
     const representativeEntityId = envDevices[0] ? getRepresentativeEntityId(this._hass, envDevices[0].deviceId) : undefined;
-    const title = resolveCardName(this._hass, representativeEntityId, this._config.name, multiEnvCardNameFallback(envDevices, 'Schedules'));
+    const title = resolveCardName(this._hass, representativeEntityId, this._config.name, multiEnvCardNameFallback(envDevices, t(this._hass, 'name_schedules')));
     // envDevices (already correctly ordered — see _buildRows) passes
     // straight through to groupScheduleRows now, which groups by
     // iterating it directly rather than deriving a key per row and
@@ -354,7 +374,13 @@ export class DockhandSchedulesCard extends LitElement implements LovelaceCard {
     // separate re-sort step that could still drift out of sync. This is
     // the structural fix: there's no second order-bearing value left to
     // drift from envDevices' own order at all.
-    const groups = groupScheduleRows(rows, resolveEffectiveGroupBy(this._config.group_by, envDevices, 'environment'), this._config.sort_by ?? 'status', envDevices);
+    const groups = groupScheduleRows(rows, resolveEffectiveGroupBy(this._config.group_by, envDevices, 'environment'), this._config.sort_by ?? 'status', envDevices, {
+      type: (type) => stateLabel(this._hass, 'schedule_type', type),
+      status: (status) => stateLabel(this._hass, 'schedule_status', status),
+      disabled: t(this._hass, 'schedule_disabled'),
+      neverRun: t(this._hass, 'schedule_never_run'),
+      global: t(this._hass, 'schedule_global')
+    });
 
     return html`
       <ha-card>
@@ -420,14 +446,14 @@ export class DockhandSchedulesCard extends LitElement implements LovelaceCard {
 
     return html`
       <div class="row stats-row">
-        ${renderIcon({ baseClass: 'stat', icon: 'mdi:check-circle', color: 'var(--dockhand-status-ok-color)', text: `${success}`, title: 'Success', static: true })}
-        ${renderIcon({ baseClass: 'stat', icon: 'mdi:close-circle', color: 'var(--dockhand-status-error-color)', text: `${failed}`, title: 'Failed', static: true })}
-        ${renderIcon({ baseClass: 'stat', icon: 'mdi:alert-circle', color: 'var(--dockhand-status-warn-color)', text: `${warning}`, title: 'Warning', static: true })}
-        ${renderIcon({ baseClass: 'stat', icon: 'mdi:sync', color: 'var(--dockhand-status-info-color)', text: `${running}`, title: 'Running', static: true })}
-        ${renderIcon({ baseClass: 'stat', icon: 'mdi:clock-outline', color: 'var(--secondary-text-color)', text: `${queued}`, title: 'Queued', static: true })}
-        ${renderIcon({ baseClass: 'stat', icon: 'mdi:skip-next-circle-outline', color: 'var(--secondary-text-color)', text: `${skipped}`, title: 'Skipped', static: true })}
-        ${renderIcon({ baseClass: 'stat', icon: 'mdi:cancel', color: 'var(--secondary-text-color)', text: `${disabled}`, title: 'Disabled', static: true })}
-        <span class="stat">Total ${rows.length}</span>
+        ${renderIcon({ baseClass: 'stat', icon: 'mdi:check-circle', color: 'var(--dockhand-status-ok-color)', text: `${success}`, title: t(this._hass, 'schedule_status_success'), static: true })}
+        ${renderIcon({ baseClass: 'stat', icon: 'mdi:close-circle', color: 'var(--dockhand-status-error-color)', text: `${failed}`, title: t(this._hass, 'schedule_status_failed'), static: true })}
+        ${renderIcon({ baseClass: 'stat', icon: 'mdi:alert-circle', color: 'var(--dockhand-status-warn-color)', text: `${warning}`, title: t(this._hass, 'schedule_status_warning'), static: true })}
+        ${renderIcon({ baseClass: 'stat', icon: 'mdi:sync', color: 'var(--dockhand-status-info-color)', text: `${running}`, title: t(this._hass, 'schedule_status_running'), static: true })}
+        ${renderIcon({ baseClass: 'stat', icon: 'mdi:clock-outline', color: 'var(--secondary-text-color)', text: `${queued}`, title: t(this._hass, 'schedule_status_queued'), static: true })}
+        ${renderIcon({ baseClass: 'stat', icon: 'mdi:skip-next-circle-outline', color: 'var(--secondary-text-color)', text: `${skipped}`, title: t(this._hass, 'schedule_status_skipped'), static: true })}
+        ${renderIcon({ baseClass: 'stat', icon: 'mdi:cancel', color: 'var(--secondary-text-color)', text: `${disabled}`, title: t(this._hass, 'schedule_disabled'), static: true })}
+        <span class="stat">${t(this._hass, 'label_total', { count: rows.length })}</span>
       </div>
     `;
   }
@@ -451,12 +477,20 @@ export class DockhandSchedulesCard extends LitElement implements LovelaceCard {
     // that point hiding 'environment' is a stated preference, not just
     // grouping already having covered it.
     const showInstanceLabel = this._config?.visible_badges ? showEnvironment : true;
-    const nextRunText = !row.enabled ? 'disabled' : row.status === 'running' ? 'running' : formatRelativeTime(row.nextRunIso);
+    const nextRunText = !row.enabled
+      ? t(this._hass, 'schedule_disabled')
+      : row.status === 'running'
+        ? t(this._hass, 'schedule_status_running')
+        : formatRelativeTime(row.nextRunIso, this._hass);
 
     return html`
       <div class="row clickable" tabindex="0" role="button" @click=${() => this._moreInfo(row.entityId)} @keydown=${onKeydownActivate(() => this._moreInfo(row.entityId))}>
         <div class="row-left">
-          <ha-icon class="row-icon ${statusIcon.cls}" icon=${statusIcon.icon}></ha-icon>
+          <ha-icon
+            class="row-icon ${statusIcon.cls}"
+            icon=${statusIcon.icon}
+            title=${!row.enabled ? t(this._hass, 'schedule_disabled') : row.status ? stateLabel(this._hass, 'schedule_status', row.status) : t(this._hass, 'schedule_never_run')}
+          ></ha-icon>
           <span class="item-name">${row.name}</span>
           ${showEnvironment && row.environment ? html`<span class="label-pill">${row.environment}</span>` : nothing}
           ${showInstanceLabel && row.instanceLabel ? html`<span class="label-pill">${row.instanceLabel}</span>` : nothing}

@@ -21,14 +21,32 @@ export const sharedStyles = css`
      * are left as plain CSS and are card_mod's job, not a theme's.
      */
     --dockhand-accent-color: var(--primary-color);
-    --dockhand-status-ok-color: var(--success-color, #22c55e);
-    --dockhand-status-warn-color: var(--warning-color, #f59e0b);
-    --dockhand-status-error-color: var(--error-color, #ef4444);
-    --dockhand-status-info-color: var(--info-color, #38bdf8);
-    --dockhand-severity-critical-color: #ef4444;
-    --dockhand-severity-high-color: #f97316;
-    --dockhand-severity-medium-color: #ca8a04;
-    --dockhand-severity-low-color: #3b82f6;
+    --dockhand-status-ok-color: var(--success-color, #43a047);
+    --dockhand-status-warn-color: var(--warning-color, #ffa600);
+    --dockhand-status-error-color: var(--error-color, #db4437);
+    --dockhand-status-info-color: var(--info-color, #039be5);
+    /* Dockhand's four severity levels (red, orange, yellow, blue) on HA's
+     * status colors, so a theme's colors carry through. HA has no color
+     * between error and warning, so high is the two mixed evenly. */
+    --dockhand-severity-critical-color: var(--dockhand-status-error-color);
+    --dockhand-severity-high-color: color-mix(in srgb, var(--dockhand-status-error-color) 50%, var(--dockhand-status-warn-color));
+    --dockhand-severity-medium-color: var(--dockhand-status-warn-color);
+    --dockhand-severity-low-color: var(--dockhand-status-info-color);
+    /*
+     * The same colors for text. They default to the colors themselves, all
+     * of which come from Home Assistant's theme, so the cards match the rest
+     * of HA; a theme that needs more contrast for words can set these
+     * without changing icons.
+     */
+    --dockhand-accent-text-color: var(--dockhand-accent-color);
+    --dockhand-status-ok-text-color: var(--dockhand-status-ok-color);
+    --dockhand-status-warn-text-color: var(--dockhand-status-warn-color);
+    --dockhand-status-error-text-color: var(--dockhand-status-error-color);
+    --dockhand-status-info-text-color: var(--dockhand-status-info-color);
+    --dockhand-severity-critical-text-color: var(--dockhand-severity-critical-color);
+    --dockhand-severity-high-text-color: var(--dockhand-severity-high-color);
+    --dockhand-severity-medium-text-color: var(--dockhand-severity-medium-color);
+    --dockhand-severity-low-text-color: var(--dockhand-severity-low-color);
   }
 
   ha-card {
@@ -150,6 +168,31 @@ export const sharedStyles = css`
    * the two never compete for the same element at all — its own
    * padding here is genuinely larger and intentional (12px, not the
    * standard 4px), for the single most prominent value on a card. */
+  /* Container/Stack start/stop/restart/deploy buttons, directly under the
+   * hero status. Wraps rather than overflowing on a narrow card. */
+  .control-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--ha-space-2, 8px);
+    padding-bottom: 12px;
+  }
+  .control-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ha-space-1, 4px);
+    height: 32px;
+    padding: 0 var(--ha-space-3, 12px);
+    border-radius: 16px;
+    background: rgb(from var(--dockhand-accent-color) r g b / 0.1);
+    color: var(--dockhand-accent-text-color);
+    font-size: var(--ha-font-size-m, 14px);
+    font-weight: 500;
+    --mdc-icon-size: 18px;
+  }
+  .control-button:hover {
+    background: rgb(from var(--dockhand-accent-color) r g b / 0.18);
+  }
   .hero-row {
     display: flex;
     align-items: center;
@@ -209,7 +252,7 @@ export const sharedStyles = css`
     padding: 0 var(--ha-space-3, 12px);
     gap: var(--ha-space-1, 4px);
     background: var(--dockhand-accent-color);
-    color: white;
+    color: var(--text-primary-color, white);
     font-size: var(--ha-font-size-s, 12px);
     font-weight: 500;
   }
@@ -307,11 +350,17 @@ export const sharedStyles = css`
    * using CSS subgrid here (see .list, above) — each item is
    * self-contained and doesn't need to align its own internal columns
    * with its neighbor, just occupy one of two cells, so a plain grid
-   * is all this needs. */
+   * is all this needs. .stacked (set by PairGridController, which
+   * measures the items) drops to one column when a pair can't sit side by
+   * side without overlapping — every pair at once, so the columns stay
+   * aligned. */
   .grid-2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
     column-gap: var(--ha-space-4, 16px);
+  }
+  .grid-2.stacked {
+    grid-template-columns: 1fr;
   }
   .clickable {
     cursor: pointer;
@@ -342,6 +391,19 @@ export const sharedStyles = css`
     border-radius: var(--ha-card-border-radius, 12px);
   }
   .clickable:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+  /* The keyboard/screen-reader button inside a row (or card) that's also
+   * clickable as a whole with the mouse. Making the whole row the button
+   * would nest the row's own badge buttons inside it, which assistive
+   * technology can't reach — so the row stays a plain click target and
+   * this part of it is the button, beside the badges rather than around. */
+  .row-target {
+    outline: none;
+    border-radius: 6px;
+  }
+  .row-target:focus-visible {
     outline: 2px solid var(--primary-color);
     outline-offset: 2px;
   }
@@ -442,10 +504,10 @@ export const sharedStyles = css`
     flex-shrink: 0;
   }
   .card-message.warn {
-    color: var(--dockhand-status-warn-color);
+    color: var(--dockhand-status-warn-text-color);
   }
   .card-message.error {
-    color: var(--dockhand-status-error-color);
+    color: var(--dockhand-status-error-text-color);
   }
   /* The two in-card "content header" variants share exactly these
    * properties — one comma-selector group rather than two copies. What's
@@ -540,7 +602,6 @@ export const sharedStyles = css`
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    text-transform: capitalize;
     /* line-height: 1 for the same reason .stats-row .stat uses it —
      * default line-height leaves invisible space above/below the actual
      * glyphs, which this element's own larger inherited font-size
@@ -560,13 +621,13 @@ export const sharedStyles = css`
    * itself stays unchanged anywhere it's still shown as text or used
    * as an icon lookup key; only the CSS class benefits. */
   .hero-word.ok {
-    color: var(--dockhand-status-ok-color);
+    color: var(--dockhand-status-ok-text-color);
   }
   .hero-word.warn {
-    color: var(--dockhand-status-warn-color);
+    color: var(--dockhand-status-warn-text-color);
   }
   .hero-word.error {
-    color: var(--dockhand-status-error-color);
+    color: var(--dockhand-status-error-text-color);
   }
   .hero-word.neutral {
     color: var(--secondary-text-color);
@@ -662,6 +723,22 @@ export const sharedStyles = css`
     gap: var(--ha-space-2, 8px);
     flex-shrink: 0;
     line-height: 1;
+  }
+  /* See renderFitParts (fit-parts.ts): pieces that don't fit wrap onto a
+   * second line that the one-line height hides. Unlike a plain .row-right it
+   * may shrink, which is what makes the wrapping happen. */
+  .fit-parts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    column-gap: 0.3em;
+    row-gap: 0;
+    min-width: 0;
+    flex-shrink: 1;
+    height: 1lh;
+    overflow: hidden;
+    white-space: nowrap;
   }
   /* No explicit color here — ha-card's own default (top of this file)
    * already makes this primary-text-color, matching every other
@@ -817,18 +894,18 @@ export const sharedStyles = css`
   }
   .status-banner.ok {
     background: rgb(from var(--dockhand-status-ok-color) r g b / 0.12);
-    color: var(--dockhand-status-ok-color);
+    color: var(--dockhand-status-ok-text-color);
   }
   .status-banner.warn {
     background: rgb(from var(--dockhand-status-warn-color) r g b / 0.12);
-    color: var(--dockhand-status-warn-color);
+    color: var(--dockhand-status-warn-text-color);
   }
   .status-banner.error {
     background: rgb(from var(--dockhand-status-error-color) r g b / 0.12);
-    color: var(--dockhand-status-error-color);
+    color: var(--dockhand-status-error-text-color);
   }
   .status-banner.accent {
     background: rgb(from var(--dockhand-accent-color) r g b / 0.12);
-    color: var(--dockhand-accent-color);
+    color: var(--dockhand-accent-text-color);
   }
 `;

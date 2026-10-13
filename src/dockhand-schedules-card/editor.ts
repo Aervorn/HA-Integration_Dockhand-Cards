@@ -153,7 +153,7 @@ export class DockhandSchedulesCardEditor extends LitElement implements LovelaceC
         // set right away, not a reasonable-default-most-won't-touch
         // field the rest of this section is for.
         schema: [
-          ...(this.hideTitle ? [] : [cardNameFieldSchema(representativeEntityId, 'Schedules')]),
+          ...(this.hideTitle ? [] : [cardNameFieldSchema(representativeEntityId, t(this._hass, 'label_schedules'))]),
           {
             name: '',
             type: 'grid',

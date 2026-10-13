@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { t as tCard } from './i18n-card';
-import { t as tEditor } from './i18n-editor';
+import { t as tCard, CARD_LOCALE_CODES, CARD_TRANSLATION_KEYS } from './i18n-card';
+import { t as tEditor, EDITOR_LOCALE_CODES, EDITOR_TRANSLATION_KEYS } from './i18n-editor';
 
 describe('i18n-editor t()', () => {
   it('returns the English string when no hass/language is given', () => {
@@ -40,7 +40,7 @@ describe('i18n-card t()', () => {
   });
 
   it('prefers locale.language over the top-level language field', () => {
-    expect(tCard({ language: 'de', locale: { language: 'fr' } }, 'no_schedules_found')).toBe('Aucun planning trouvé.');
+    expect(tCard({ language: 'de', locale: { language: 'fr' } }, 'no_schedules_found')).toBe('Aucune planification trouvée.');
   });
 
   it('falls back to English for an unsupported language', () => {
@@ -51,5 +51,23 @@ describe('i18n-card t()', () => {
     expect(tCard({ language: 'de' }, 'no_schedules_found')).not.toBe(tCard(undefined, 'no_schedules_found'));
     expect(tCard({ language: 'zh-Hans' }, 'settings_link_view_containers')).not.toBe(tCard(undefined, 'settings_link_view_containers'));
     expect(tCard({ language: 'es' }, 'settings_link_edit_environment')).not.toBe(tCard(undefined, 'settings_link_edit_environment'));
+  });
+});
+
+describe('every locale', () => {
+  const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+
+  it.each([
+    ['card', CARD_LOCALE_CODES, CARD_TRANSLATION_KEYS, tCard],
+    ['editor', EDITOR_LOCALE_CODES, EDITOR_TRANSLATION_KEYS, tEditor]
+  ] as const)('has a non-empty %s string for every key, with the same {placeholders} as English', (_label, codes, keys, translate) => {
+    const lookup = translate as (hass: { language: string }, key: string) => string;
+    for (const language of codes) {
+      for (const key of keys) {
+        const text = lookup({ language }, key);
+        expect(text.trim(), `${language}.${key}`).not.toBe('');
+        expect(placeholders(text), `${language}.${key}`).toEqual(placeholders(lookup({ language: 'en' }, key)));
+      }
+    }
   });
 });

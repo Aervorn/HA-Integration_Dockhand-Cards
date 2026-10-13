@@ -3,11 +3,9 @@ import { state } from 'lit/decorators.js';
 import { ref } from 'lit/directives/ref.js';
 import { keyed } from 'lit/directives/keyed.js';
 import { fireEvent, type LovelaceCardEditor } from 'custom-card-helpers';
-import type { HaFormSchema } from '../common/ha-form-types';
 
 import type { HomeAssistant } from '../common/ha-types';
-import { getEnvironmentDevices, getRepresentativeEntityId } from '../common/device-utils';
-import { cardNameFieldSchema } from '../common/card-name';
+import { getEnvironmentDevices } from '../common/device-utils';
 import { stripUndefinedKeys } from '../common/config-utils';
 import { editorFormStyles, sortableRowStyles } from '../common/editor-styles';
 import { resolveEnvironmentOrder } from '../common/environment-scope';
@@ -19,6 +17,7 @@ import type { DockhandVulnerabilityCardConfig } from '../dockhand-vulnerability-
 import { DEFAULT_STACKS_BADGES, type DockhandStacksCardConfig } from '../dockhand-stacks-card/types';
 import { DEFAULT_CONTAINERS_BADGES, type DockhandContainersCardConfig } from '../dockhand-containers-card/types';
 import type { DockhandSchedulesCardConfig } from '../dockhand-schedules-card/types';
+import type { DockhandUpdatesCardConfig } from '../dockhand-updates-card/types';
 import {
   DEFAULT_SECTION_ORDER,
   getEnvironmentOrder,
@@ -29,17 +28,24 @@ import {
   type EnvironmentOverride
 } from './types';
 
-// Side-effect imports — registers the 4 standalone editors' custom
+// Side-effect imports — registers the standalone editors' custom
 // elements so this editor can mount them directly for the per-environment
-// override detail view (see _renderDetailSection). Not needed for the
-// Updates card — its editor builds a native-visibility mechanism that
-// doesn't apply here — see _renderDetailSection's 'updates' case for why
-// that section is hand-built instead of reused.
+// override and global-defaults views.
 import '../dockhand-environment-card/editor';
 import '../dockhand-vulnerability-card/editor';
 import '../dockhand-stacks-card/editor';
 import '../dockhand-containers-card/editor';
+import '../dockhand-updates-card/editor';
 
+
+const EMBEDDED_EDITOR_TAGS = [
+  'dockhand-environment-card-editor',
+  'dockhand-vulnerability-card-editor',
+  'dockhand-stacks-card-editor',
+  'dockhand-containers-card-editor',
+  'dockhand-schedules-card-editor',
+  'dockhand-updates-card-editor'
+].join(', ');
 
 const SECTION_LABEL_KEY: Record<OverviewSection, EditorTranslationKey> = {
   environments: 'label_environments',
@@ -120,7 +126,11 @@ export class DockhandOverviewCardEditor extends LitElement implements LovelaceCa
   static styles = css`
     ${editorFormStyles}
     ${sortableRowStyles}
-    .section-order-row.disabled {
+    /* Same treatment as a hidden environment row (editor-styles.ts). */
+    .section-order-row.disabled .order-name {
+      color: var(--secondary-text-color);
+    }
+    .section-order-row.disabled .order-handle {
       opacity: 0.5;
     }
     /* ha-expansion-panel margin/padding and .row-action-btn/.row-actions/
@@ -175,6 +185,11 @@ export class DockhandOverviewCardEditor extends LitElement implements LovelaceCa
 
   set hass(hass: HomeAssistant) {
     this._hass = hass;
+    // The embedded editors only get hass when mounted (see _mountEditor),
+    // so pass every later update on, as HA does for a top-level editor.
+    for (const editor of this.shadowRoot?.querySelectorAll<HTMLElement & { hass: HomeAssistant }>(EMBEDDED_EDITOR_TAGS) ?? []) {
+      editor.hass = hass;
+    }
   }
 
   setConfig(config: DockhandOverviewCardConfig): void {
@@ -362,23 +377,12 @@ export class DockhandOverviewCardEditor extends LitElement implements LovelaceCa
           </div>
         </div>
 
-        ${section === 'updates'
-          ? html`
-              <ha-form
-                .hass=${this._hass}
-                .data=${this._config}
-                .schema=${[{ name: 'updates_hide_when_no_updates', default: false, selector: { boolean: {} } }]}
-                .computeLabel=${() => t(this._hass, 'hide_updates_global')}
-                .computeHelper=${() => t(this._hass, 'hide_updates_global_hint')}
-                @value-changed=${this._sectionSettingsChanged}
-              ></ha-form>
-            `
-          : this._renderGlobalSectionEditor(section)}
+        ${this._renderGlobalSectionEditor(section)}
       `
     )}`;
   }
 
-  private _renderGlobalSectionEditor(section: Exclude<OverviewSection, 'updates'>): TemplateResult {
+  private _renderGlobalSectionEditor(section: OverviewSection): TemplateResult {
     switch (section) {
       case 'environments':
         return html`<dockhand-environment-card-editor
@@ -405,15 +409,14 @@ export class DockhandOverviewCardEditor extends LitElement implements LovelaceCa
           ${ref(this._mountGlobalEditor('schedules'))}
           @config-changed=${this._globalSectionChanged('schedules')}
         ></dockhand-schedules-card-editor>`;
+      case 'updates':
+        return html`<dockhand-updates-card-editor
+          ${ref(this._mountGlobalEditor('updates'))}
+          @config-changed=${this._globalSectionChanged('updates')}
+        ></dockhand-updates-card-editor>`;
     }
   }
 
-  /** Only 'updates' still needs a hand-built schema — its embedded
-   * editor's own hide_when_no_updates would come with a native HA
-   * `visibility:` condition Overview doesn't want as a "shared default"
-   * concept (see the reasoning already on _renderDetailSectionContent's
-   * 'updates' case). Every other section's global-defaults view embeds
-   * the real editor instead — see _mountGlobalEditor/GLOBAL_FIELD_MAP. */
   private _sectionSettingsChanged(ev: CustomEvent<{ value: DockhandOverviewCardConfig }>): void {
     this._config = { ...ev.detail.value };
     fireEvent(this, 'config-changed', { config: this._config });
@@ -534,35 +537,13 @@ export class DockhandOverviewCardEditor extends LitElement implements LovelaceCa
             @config-changed=${this._overrideSectionChanged(deviceId, 'containers')}
           ></dockhand-containers-card-editor>
         `;
-      case 'updates': {
-        // Not reused from DockhandUpdatesCardEditor: that editor now
-        // builds a native HA visibility condition for hide_when_no_updates
-        // (its own scope selector is gone, migrated to the same
-        // Environments section every other card uses) — this Overview
-        // card already implements hide-when-no-updates its own way for
-        // nested cards (see card.ts), so reusing that editor would build
-        // a `visibility` condition that's never actually consulted for
-        // cards this component renders directly. The Name field itself
-        // still needs the same real picker every other card's override
-        // view gets, though — a plain <ha-input> can't hold a Composed
-        // value (an EntityNameItem[]), only Custom mode's plain string,
-        // which is why this is a small <ha-form> now rather than
-        // hand-rolled inputs.
-        const current = overrides?.[deviceId]?.updates ?? {};
-        const schema: HaFormSchema[] = [
-          cardNameFieldSchema(getRepresentativeEntityId(this._hass!, deviceId), [{ type: 'device' }]),
-          { name: 'hide_when_no_updates', default: false, selector: { boolean: {} } }
-        ];
+      case 'updates':
         return html`
-          <ha-form
-            .hass=${this._hass}
-            .data=${current}
-            .schema=${schema}
-            .computeLabel=${(s: HaFormSchema) => (s.name === 'name' ? t(this._hass, 'title_override') : t(this._hass, 'hide_when_no_updates_override'))}
-            @value-changed=${this._overrideSectionChanged(deviceId, 'updates')}
-          ></ha-form>
+          <dockhand-updates-card-editor
+            ${ref(this._mountEditor<DockhandUpdatesCardConfig>(deviceId, 'custom:dockhand-updates-card', overrides?.[deviceId]?.updates))}
+            @config-changed=${this._overrideSectionChanged(deviceId, 'updates')}
+          ></dockhand-updates-card-editor>
         `;
-      }
       case 'schedules':
         return html`
           <dockhand-schedules-card-editor
@@ -573,7 +554,7 @@ export class DockhandOverviewCardEditor extends LitElement implements LovelaceCa
     }
   }
 
-  /** ref() callback factory for the 4 reused standalone editors — sets
+  /** ref() callback factory for the reused standalone editors — sets
    * hass/cardIsEmbedded before calling setConfig so the very first
    * render already reflects both (no flash of a device picker that then
    * disappears). Only runs on mount (see keyed() in
@@ -618,13 +599,11 @@ export class DockhandOverviewCardEditor extends LitElement implements LovelaceCa
     };
   }
 
-  /** The 4 section types whose Overview-level global default now reuses
-   * that card's own real editor, instead of a hand-duplicated schema —
-   * see docs/ARCHITECTURE.md's entry on this. 'updates' deliberately
-   * isn't here: its real editor builds a native HA `visibility:`
-   * condition that has no meaning as a "shared default" (see the
-   * existing comment on the 'updates' case below), and it's a single
-   * field, so hand-duplicating it costs little.
+  /** The section types whose Overview-level global default reuses that
+   * card's own real editor, instead of a hand-duplicated schema — see
+   * docs/ARCHITECTURE.md's entry on this. (The Updates editor skips its
+   * native HA `visibility:` condition when cardIsEmbedded, since Overview
+   * hides an embedded Updates card itself.)
    *
    * Each embedded editor's own field names don't match Overview's own
    * prefixed global-default config keys directly (`mode` vs
@@ -634,7 +613,7 @@ export class DockhandOverviewCardEditor extends LitElement implements LovelaceCa
    * itself except 'environments', which drops the trailing 's'
    * (`environment_mode`, not `environments_mode`). GLOBAL_SECTION_PREFIX
    * is just that one small exception table, not a full field-by-field
-   * map — a genuinely new field on any of these 4 cards' editors needs
+   * map — a genuinely new field on any of these cards' editors needs
    * nothing added here at all for the write-back direction (see
    * _globalSectionChanged) to pick it up automatically. `title` is
    * deliberately excluded via hideTitle instead of being mappable here —
@@ -642,20 +621,22 @@ export class DockhandOverviewCardEditor extends LitElement implements LovelaceCa
    * anything. `show_settings_link` isn't excluded: unlike title, a
    * link-visibility preference is genuinely something a user might want
    * uniformly per card type. */
-  private static readonly GLOBAL_SECTION_PREFIX: Record<'environments' | 'vulnerabilities' | 'stacks' | 'containers' | 'schedules', string> = {
+  private static readonly GLOBAL_SECTION_PREFIX: Record<'environments' | 'vulnerabilities' | 'stacks' | 'containers' | 'schedules' | 'updates', string> = {
     environments: 'environment',
     vulnerabilities: 'vulnerabilities',
     stacks: 'stacks',
     containers: 'containers',
-    schedules: 'schedules'
+    schedules: 'schedules',
+    updates: 'updates'
   };
 
-  private static readonly GLOBAL_SECTION_TYPE: Record<'environments' | 'vulnerabilities' | 'stacks' | 'containers' | 'schedules', string> = {
+  private static readonly GLOBAL_SECTION_TYPE: Record<'environments' | 'vulnerabilities' | 'stacks' | 'containers' | 'schedules' | 'updates', string> = {
     environments: 'custom:dockhand-environment-card',
     vulnerabilities: 'custom:dockhand-vulnerability-card',
     stacks: 'custom:dockhand-stacks-card',
     containers: 'custom:dockhand-containers-card',
-    schedules: 'custom:dockhand-schedules-card'
+    schedules: 'custom:dockhand-schedules-card',
+    updates: 'custom:dockhand-updates-card'
   };
 
   /** Builds the config fed into the embedded editor for the
@@ -673,7 +654,7 @@ export class DockhandOverviewCardEditor extends LitElement implements LovelaceCa
    * environment_overrides/environment_order collided, and setConfig()
    * always migrates those away before this._config is ever read from
    * here (see migrateOverviewConfig in types.ts). */
-  private _globalEditorConfig(section: 'environments' | 'vulnerabilities' | 'stacks' | 'containers' | 'schedules'): Record<string, unknown> {
+  private _globalEditorConfig(section: 'environments' | 'vulnerabilities' | 'stacks' | 'containers' | 'schedules' | 'updates'): Record<string, unknown> {
     const cfg = (this._config ?? {}) as unknown as Record<string, unknown>;
     const prefix = DockhandOverviewCardEditor.GLOBAL_SECTION_PREFIX[section];
     const data: Record<string, unknown> = { type: DockhandOverviewCardEditor.GLOBAL_SECTION_TYPE[section], device_id: '' };
@@ -691,7 +672,7 @@ export class DockhandOverviewCardEditor extends LitElement implements LovelaceCa
     return data;
   }
 
-  private _mountGlobalEditor(section: 'environments' | 'vulnerabilities' | 'stacks' | 'containers' | 'schedules') {
+  private _mountGlobalEditor(section: 'environments' | 'vulnerabilities' | 'stacks' | 'containers' | 'schedules' | 'updates') {
     return (el?: Element) => {
       if (!el || !this._hass) return;
       const editor = el as unknown as EmbeddableCardEditor<Record<string, unknown>>;
@@ -709,7 +690,7 @@ export class DockhandOverviewCardEditor extends LitElement implements LovelaceCa
    * the data any embedded editor emits is exactly the data it was given
    * (via _globalEditorConfig's own generic prefix scan) plus whatever
    * the user changed. This is what makes adding a new field to one of
-   * these 4 cards' editors "just work" on both the read and write-back
+   * these cards' editors "just work" on both the read and write-back
    * directions, with nothing in this file to remember to touch at all —
    * see docs/ARCHITECTURE.md §4 for why this scan needs no exceptions
    * of any kind now (environments_overrides/environments_order were
@@ -736,7 +717,7 @@ export class DockhandOverviewCardEditor extends LitElement implements LovelaceCa
    * where "Please select a Dockhand environment." was coming from: the
    * card being mistakenly previewed was dockhand-stacks-card with
    * device_id: '', not dockhand-overview-card. */
-  private _globalSectionChanged(section: 'environments' | 'vulnerabilities' | 'stacks' | 'containers' | 'schedules') {
+  private _globalSectionChanged(section: 'environments' | 'vulnerabilities' | 'stacks' | 'containers' | 'schedules' | 'updates') {
     return (ev: CustomEvent<{ config: Record<string, unknown> }>): void => {
       ev.stopPropagation();
       const prefix = DockhandOverviewCardEditor.GLOBAL_SECTION_PREFIX[section];

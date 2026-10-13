@@ -20,6 +20,7 @@ import { DockhandContainersCard } from './dockhand-containers-card/card';
 import { DockhandUpdatesCard } from './dockhand-updates-card/card';
 import { DockhandOverviewCard } from './dockhand-overview-card/card';
 import { DockhandSchedulesCard } from './dockhand-schedules-card/card';
+import { t } from './common/i18n-card';
 
 customElements.define('dockhand-environment-card', DockhandEnvironmentCard);
 customElements.define('dockhand-vulnerability-card', DockhandVulnerabilityCard);
@@ -66,7 +67,7 @@ window.customCards.push({
 
     const envSuggestion: EntitySuggestion = {
       config: { type: 'custom:dockhand-environment-card', device_id: device.id, mode: 'standard' },
-      label: 'Environment overview'
+      label: t(hass, 'suggest_environment_overview')
     };
 
     // The environment's own aggregate sensors point at a more specific
@@ -75,15 +76,15 @@ window.customCards.push({
     // to see the stacks themselves, not just the environment tile.
     if (entry.translation_key === ENV_TRANSLATION_KEYS.vulnerabilities) {
       return [
-        { config: { type: 'custom:dockhand-vulnerability-card', device_id: device.id }, label: 'Vulnerability summary' },
+        { config: { type: 'custom:dockhand-vulnerability-card', device_id: device.id }, label: t(hass, 'suggest_vulnerability_summary') },
         envSuggestion
       ];
     }
     if (entry.translation_key === ENV_TRANSLATION_KEYS.stacks) {
-      return [{ config: { type: 'custom:dockhand-stacks-card', device_id: device.id }, label: 'All stacks' }, envSuggestion];
+      return [{ config: { type: 'custom:dockhand-stacks-card', device_id: device.id }, label: t(hass, 'suggest_all_stacks') }, envSuggestion];
     }
     if (entry.translation_key === ENV_TRANSLATION_KEYS.containers) {
-      return [{ config: { type: 'custom:dockhand-containers-card', device_id: device.id }, label: 'All containers' }, envSuggestion];
+      return [{ config: { type: 'custom:dockhand-containers-card', device_id: device.id }, label: t(hass, 'suggest_all_containers') }, envSuggestion];
     }
     return envSuggestion;
   }
@@ -112,11 +113,11 @@ window.customCards.push({
     const device = hass.devices?.[entry.device_id];
     if (!device || !isStackDevice(device)) return undefined;
 
-    const suggestions: EntitySuggestion[] = [{ config: { type: 'custom:dockhand-stack-card', device_id: device.id }, label: 'This stack' }];
+    const suggestions: EntitySuggestion[] = [{ config: { type: 'custom:dockhand-stack-card', device_id: device.id }, label: t(hass, 'suggest_this_stack') }];
     const envId = getEnvIdForStackDevice(device);
     const envDeviceId = envId !== null ? getEnvDeviceIdForEnvId(hass, envId, device) : null;
     if (envDeviceId) {
-      suggestions.push({ config: { type: 'custom:dockhand-stacks-card', device_id: envDeviceId }, label: 'All stacks in this environment' });
+      suggestions.push({ config: { type: 'custom:dockhand-stacks-card', device_id: envDeviceId }, label: t(hass, 'suggest_stacks_in_environment') });
     }
     return suggestions;
   }
@@ -135,14 +136,14 @@ window.customCards.push({
     if (!device || !isContainerDevice(device)) return undefined;
 
     const suggestions: EntitySuggestion[] = [
-      { config: { type: 'custom:dockhand-container-card', device_id: device.id }, label: 'This container' }
+      { config: { type: 'custom:dockhand-container-card', device_id: device.id }, label: t(hass, 'suggest_this_container') }
     ];
     const envId = getEnvIdForContainerDevice(device);
     const envDeviceId = envId !== null ? getEnvDeviceIdForEnvId(hass, envId, device) : null;
     if (envDeviceId) {
       suggestions.push({
         config: { type: 'custom:dockhand-containers-card', device_id: envDeviceId },
-        label: 'All containers in this environment'
+        label: t(hass, 'suggest_containers_in_environment')
       });
     }
     return suggestions;
@@ -184,7 +185,7 @@ window.customCards.push({
     const envDeviceId = envId !== null ? getEnvDeviceIdForEnvId(hass, envId, device) : null;
     return {
       config: { type: 'custom:dockhand-updates-card', scope: envDeviceId ? 'environment' : 'all', device_id: envDeviceId ?? undefined },
-      label: 'Pending updates'
+      label: t(hass, 'pending_updates')
     };
   }
 });
@@ -218,7 +219,7 @@ window.customCards.push({
     const excludeOthers = envDeviceId ? Object.values(hass.devices ?? {}).filter((d) => isEnvironmentDevice(d) && d.id !== envDeviceId).map((d) => d.id) : [];
     return {
       config: { type: 'custom:dockhand-schedules-card', ...(envDeviceId ? { exclude_device_ids: excludeOthers } : {}) },
-      label: envDeviceId ? 'Schedules in this environment' : 'All schedules'
+      label: envDeviceId ? t(hass, 'suggest_schedules_in_environment') : t(hass, 'suggest_all_schedules')
     };
   }
 });

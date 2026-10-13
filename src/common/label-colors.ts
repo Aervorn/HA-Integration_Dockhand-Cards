@@ -12,35 +12,12 @@
  * will still show the hashed color.
  */
 
-const LABEL_COLORS = [
-  '#ef4444', // red-500
-  '#f97316', // orange-500
-  '#eab308', // yellow-500
-  '#22c55e', // green-500
-  '#14b8a6', // teal-500
-  '#3b82f6', // blue-500
-  '#8b5cf6', // violet-500
-  '#ec4899', // pink-500
-  '#06b6d4', // cyan-500
-  '#84cc16', // lime-500
-  '#6366f1', // indigo-500
-  '#d946ef' // fuchsia-500
-];
-
-const LABEL_BG_COLORS = [
-  'rgba(239, 68, 68, 0.15)', // red
-  'rgba(249, 115, 22, 0.15)', // orange
-  'rgba(234, 179, 8, 0.15)', // yellow
-  'rgba(34, 197, 94, 0.15)', // green
-  'rgba(20, 184, 166, 0.15)', // teal
-  'rgba(59, 130, 246, 0.15)', // blue
-  'rgba(139, 92, 246, 0.15)', // violet
-  'rgba(236, 72, 153, 0.15)', // pink
-  'rgba(6, 182, 212, 0.15)', // cyan
-  'rgba(132, 204, 22, 0.15)', // lime
-  'rgba(99, 102, 241, 0.15)', // indigo
-  'rgba(217, 70, 239, 0.15)' // fuchsia
-];
+/** How many label colors Dockhand cycles through. The colors themselves
+ * are the `--dockhand-label-1-color` … `--dockhand-label-12-color` custom
+ * properties (environment card styles.ts), defaulting to Dockhand's own
+ * palette in Dockhand's order: red, orange, yellow, green, teal, blue,
+ * violet, pink, cyan, lime, indigo, fuchsia. */
+export const LABEL_COLOR_COUNT = 12;
 
 /** Same hash Dockhand uses (a 32-bit string hash, absolute value) — must
  * match exactly, not just be "a" hash, or colors would disagree with
@@ -55,7 +32,14 @@ function hashString(str: string): number {
   return Math.abs(hash);
 }
 
+/** The label's color for its text and background, as CSS values. The text
+ * is the color mixed halfway toward the theme's text color so it's readable
+ * on the pill (the palette is Dockhand's, not Home Assistant's); the
+ * background is the color at 15%, as in Dockhand. */
 export function getLabelColors(label: string): { color: string; bgColor: string } {
-  const index = hashString(label) % LABEL_COLORS.length;
-  return { color: LABEL_COLORS[index], bgColor: LABEL_BG_COLORS[index] };
+  const property = `--dockhand-label-${(hashString(label) % LABEL_COLOR_COUNT) + 1}-color`;
+  return {
+    color: `color-mix(in srgb, var(${property}) 50%, var(--primary-text-color))`,
+    bgColor: `rgb(from var(${property}) r g b / 0.15)`
+  };
 }

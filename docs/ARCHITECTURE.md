@@ -17,11 +17,13 @@ sides).
 
 A small set of ha-dockhand entities have **no `translation_key` at all, by design** — anything
 `has_entity_name=True` where the entity name equals the device name (the container/stack running
-switch, the container `update` entity, the git stack deploy button). For these, `domain +
-device_id` is the safe lookup key instead: `findPrimaryEntityByDomain()` in `entity-resolver.ts`.
-Don't reach for this for anything that *does* have a `translation_key` — domain-based lookup only
-works because ha-dockhand guarantees exactly one entity of that domain per device for this
-specific small set; it's not a general-purpose fallback.
+switch, the container `update` entity). For these, `domain + device_id` is the safe lookup key
+instead: `findPrimaryEntityByDomain()` in `entity-resolver.ts`.
+Don't reach for this for anything that *does* have a `translation_key`. The lookup matches only
+entities of that domain with no `translation_key`, because a device can carry other same-domain
+entities that do have one (a container's `container_auto_update` switch sits beside its running
+switch); ha-dockhand guarantees exactly one *untranslated* entity per domain per device for this
+small set. It's not a general-purpose fallback.
 
 ## 2. Editors are built from `<ha-form>` schemas, not hand-rendered fields
 
@@ -147,12 +149,11 @@ the schema.
 ## 3. Reusing a standalone card's own editor component inside another card's editor
 
 Overview's editor reuses the actual `dockhand-environment-card-editor`/`-vulnerability-`/`-stacks-`/
-`-containers-`/`-schedules-card-editor` components directly for two different purposes — the
+`-containers-`/`-schedules-`/`-updates-card-editor` components directly for two different purposes — the
 per-environment override detail view and the global-defaults view (both elaborated in §4) —
 mounting them as real child elements and listening to their `config-changed`, rather than
-hand-duplicating each one's fields. Less code, and a field added to any of those 5 editors is
-picked up in both places for free. Updates is the one exception, and stays that way for a real
-reason — see §4.
+hand-duplicating each one's fields. Less code, and a field added to any of those editors is
+picked up in both places for free.
 
 Reusing an editor this way needs three things that aren't obvious from the standalone case:
 
@@ -239,17 +240,13 @@ section-prefixed; a key about the environments *section*/*list* as a whole is pl
 for the prefix-scan mechanism described next, and got its own naming bug fixed once real users were
 close to zero (see below).
 
-**Global defaults reuse the same 5 real editors §3 already established**, for the same reason —
-Environment/Vulnerability/Stacks/Containers/Schedules' global-defaults views in Overview's editor
-mount the real `dockhand-*-card-editor` components (with `cardIsEmbedded`/`hideTitle` both set),
-rather than building a separate `<ha-form>` schema that would duplicate the standalone editor's own
-fields. `updates` is the one section that doesn't do this: its real editor builds a native HA
-`visibility:` condition that has no meaning as a shared default for cards Overview generates and
-renders directly (§9 covers why neither `visibility:` nor a nested card's own preview state reach
-each other). Its Name field still goes through the same real `cardNameFieldSchema()` every other
-card's override view uses, though — a plain text input can't hold a Composed value, so this is a
-small hand-built `<ha-form>` with just the two fields that actually apply (Name,
-`hide_when_no_updates`), not fully hand-rendered markup the way it used to be.
+**Global defaults reuse the same real editors §3 already established**, for the same reason — every
+section's global-defaults view in Overview's editor mounts the real `dockhand-*-card-editor`
+component (with `cardIsEmbedded`/`hideTitle` both set), rather than building a separate `<ha-form>`
+schema that would duplicate the standalone editor's own fields. The Updates editor needs one extra
+rule for this: with `cardIsEmbedded` set it never writes a native HA `visibility:` condition, since
+that can't reach a card Overview renders inside its own shadow DOM (§9) — Overview applies
+`hide_when_no_updates` itself instead.
 
 **Mapping between an embedded editor's own field names and Overview's prefixed global keys**
 (`mode` vs `environment_mode`, `visible_badges` vs `stacks_visible_badges`) is entirely mechanical:
@@ -285,7 +282,7 @@ rewrite of a dashboard nobody ever reopens in the editor — there's no mechanis
 card to write back to its own stored YAML (confirmed against HA's own Heading card, which handles
 an analogous old-config-shape case the same "read forever, never force a save" way). The deprecated
 fields, the fallback branches, and `migrateOverviewConfig()` itself are tracked for removal in
-`docs/BACKLOG.md` once enough time has passed.
+2.0.0 in `docs/BACKLOG.md` (removing them is a major change under `docs/SEMVER.md`).
 
 **A card that generates another card's config must not pass explicit `undefined` for a field the
 target card defaults via `{ default, ...config }` in its own `setConfig()`.** Object spread copies
@@ -966,7 +963,8 @@ pieces).
 | `.label-row`, `.label-pill` | A wrapping flex row of pills, and the pill shape itself (a stack/container type, a custom environment label) — shared by every card that has one, see §10. `.label-row`'s own gap is the standard `8px` (fixed from an earlier, smaller `4px` — confirmed via direct measurement this was genuinely producing `4px` between adjacent pills, not `8px`). `.label-pill`'s own text is `12px`, matching `.row`'s standard size, with `line-height: 1` added at the same time so the larger, more readable text doesn't make the pill any taller than it was before (confirmed via direct measurement: same `16px` total height either way). |
 | `.status-banner` | A colored status indicator — a larger, one-per-card prominent message with its own text. Paired with a `.ok`/`.warn`/`.error`/`.accent` modifier for color — same shared definition, §10 again. A smaller, per-row/header tier used to exist separately (`.status-icon`), eliminated once its own remaining uses turned out to already belong to `.header-icon`/`.hero-word` instead. |
 | `.card-message` | The shared shape for any message taking over a card (or its own body) in place of normal content — missing entity, not-yet-available entity, nothing to show, or a positive "all clear"/"up to date" state. `.warn`/`.error` modifiers for color, no modifier for the neutral/positive case. |
-| `.grid-2` | Two independent, self-contained rows side by side (Container's own I/O rows, Environment's own resource-count grid) — deliberately a plain grid, not subgrid, since items don't need to align sub-columns with each other. |
+| `.grid-2` | Two independent, self-contained rows side by side (Container's own I/O rows, Environment's own resource-count grid) — deliberately a plain grid, not subgrid, since items don't need to align sub-columns with each other. `.stacked` (set by `PairGridController`, `common/pair-grid.ts`, from the items' measured content width) switches every pair to one column at once when the widest item no longer fits in half the width, so pairs never overlap on a narrow card and the columns stay aligned. |
+| `.fit-parts` | A value made of pieces (Container/Environment memory: `8.1%`, `· 41.5 MB`, `/ 512.0 MB`) that drops whole pieces from the end when its line is too narrow: the pieces wrap and the one-line-high box hides the second line, so there's no width threshold. Rendered by `renderFitParts()` (`common/fit-parts.ts`); each separator belongs to the piece after it so none is ever left dangling. |
 | `.bar-track`, `.bar-fill` | A CPU/Memory progress bar's own track shell and colored fill — `.bar-fill`'s own `.ok`/`.warn`/`.error` modifiers match the shared color convention. |
 | `.stats-row`, `.stat` | A container-count/schedule-outcome summary row — centered icon+count items, evenly spread (`justify-content: space-between` across N items, not the two `.row` handles). `.stat` is always static, rendered via `renderIcon()` (§17); its own color is typically set per-instance via the `color` option rather than a shared modifier class, since each usage's own semantic meaning (running/stopped/paused/etc.) is specific to that one context. |
 | `.ok` / `.warn` / `.error` / `.accent` / `.neutral` | The shared color-modifier set, paired with whichever base class (`.header-icon`, `.row-icon`, `.status-banner`, `.bar-fill`, `.hero-word`, `.card-message`) needs color for a given state. |

@@ -8,9 +8,15 @@
  * release assets to www/community/ha-dockhand-cards/. That means
  * ha-dockhand-cards-editor.js lands in the same directory as
  * ha-dockhand-cards.js without needing a separate Lovelace resource
- * registration. import.meta.url gives us the live URL of the card bundle
- * (including any ?hacstag=... cache-buster HA appended), and new URL()
- * resolves the editor filename relative to it — same origin, same folder.
+ * registration. import.meta.url gives us the live URL of the card bundle,
+ * and new URL() resolves the editor filename relative to it — same origin,
+ * same folder.
+ *
+ * The card bundle's query string (HACS's ?hacstag=…, which changes with
+ * every version) is copied onto the editor's URL too: new URL() drops it,
+ * and HACS serves these files with long-lived cache headers, so without it
+ * a browser could pair a newly installed card bundle with an editor bundle
+ * cached from the previous version.
  *
  * The dynamic import is written as a Function constructor to prevent
  * Rollup from trying to statically analyze or inline the URL — we
@@ -22,7 +28,15 @@
 // Resolved once from import.meta.url at module evaluation time, before
 // any getConfigElement() call — safe because this module is in the card
 // bundle, whose own URL is what import.meta.url correctly resolves to.
-const EDITOR_URL = new URL('./ha-dockhand-cards-editor.js', import.meta.url).href;
+const EDITOR_URL = editorUrl(import.meta.url);
+
+/** The editor bundle's URL beside the card bundle at `cardUrl`, with the
+ * card bundle's query string (its version cache-buster) carried over. */
+export function editorUrl(cardUrl: string): string {
+  const url = new URL('./ha-dockhand-cards-editor.js', cardUrl);
+  url.search = new URL(cardUrl).search;
+  return url.href;
+}
 
 let editorLoadPromise: Promise<void> | null = null;
 

@@ -208,9 +208,13 @@ export class DockhandEnvironmentCardEditor extends LitElement implements Lovelac
     if (unavailable.length === 0) return {};
 
     const names = unavailable
-      .map((u: { key: EnvTranslationKey; reason: string }) => `${ENV_FRIENDLY_LABEL[u.key] ?? u.key}${u.reason === 'not_found' ? ' (requires a newer ha-dockhand release)' : ''}`)
+      .map((u: { key: EnvTranslationKey; reason: string }) => {
+        const label = ENV_FRIENDLY_LABEL[u.key];
+        const name = label ? t(this._hass, label) : u.key;
+        return u.reason === 'not_found' ? `${name} ${t(this._hass, 'requires_newer_integration_suffix')}` : name;
+      })
       .join(', ');
-    return { mode: `This card would show more with these entities enabled: ${names}.` };
+    return { mode: t(this._hass, 'availability_hint', { names }) };
   }
 }
 

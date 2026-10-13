@@ -28,7 +28,9 @@ export interface DockhandStackCardConfig extends LovelaceCardConfig {
    * see common/card-name.ts. */
   name?: string | EntityNameItem | EntityNameItem[];
   show_settings_link?: boolean;
+  /** Show the row of start/stop/restart buttons under the status. Default true. */
+  show_controls?: boolean;
   /** Custom header icon (e.g. "mdi:layers-triple"). Falls back to
-  * DEFAULT_STACK_ICON when unset. */
+   * DEFAULT_STACK_ICON when unset. */
   icon?: string;
 }

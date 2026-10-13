@@ -163,8 +163,13 @@ export class DockhandContainerCardEditor extends LitElement implements LovelaceC
     const disabledOnly = unavailable.filter((u) => u.reason === 'disabled');
     if (disabledOnly.length === 0) return {};
 
-    const names = disabledOnly.map((u) => CONTAINER_FRIENDLY_LABEL[u.key] ?? u.key).join(', ');
-    return { device_id: `This card would show more with these entities enabled: ${names}.` };
+    const names = disabledOnly
+      .map((u) => {
+        const label = CONTAINER_FRIENDLY_LABEL[u.key];
+        return label ? t(this._hass, label) : u.key;
+      })
+      .join(', ');
+    return { device_id: t(this._hass, 'availability_hint', { names }) };
   }
 
   /** Plain passthrough — same as every other converted editor.

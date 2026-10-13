@@ -163,8 +163,8 @@ function buildEnvironment(addDevice, addEntity, opts) {
     })
   );
   addEntity(
-    entity(`sensor.${slug}_disk_usage`, envDeviceId, 'disk_usage', '21474836480', {
-      unit_of_measurement: 'B',
+    entity(`sensor.${slug}_disk_usage`, envDeviceId, 'disk_usage', '20480', {
+      unit_of_measurement: 'MiB',
       images_size_bytes: 12884901888,
       containers_size_bytes: 419430400,
       volumes_size_bytes: 6979321856,
@@ -208,7 +208,8 @@ function buildEnvironment(addDevice, addEntity, opts) {
     { name: 'postgres', state: 'running', health: 'healthy', cpu: 6.1, mem: 12.4, memLimit: 1024, update: 'none', image: 'postgres:16' },
     { name: 'redis', state: 'running', health: 'healthy', cpu: 1.1, mem: 3.2, memLimit: 256, update: 'none', image: 'redis:7.2' },
     { name: 'traefik', state: 'running', health: null, cpu: 0.4, mem: 1.8, memLimit: 256, update: 'generic', image: 'traefik:v3.1' },
-    { name: 'worker', state: 'running', health: 'unhealthy', cpu: 0.2, mem: 2.6, memLimit: 512, update: 'none', image: 'ghcr.io/nebula/worker:latest' }
+    { name: 'worker', state: 'running', health: 'unhealthy', cpu: 0.2, mem: 2.6, memLimit: 512, update: 'none', image: 'ghcr.io/nebula/worker:latest' },
+    { name: 'backup', state: 'exited', health: null, cpu: 0, mem: 0, memLimit: 256, update: 'none', image: 'restic/restic:0.17', netRx: 0, netTx: 0, blkRead: 0, blkWrite: 0 }
   ];
 
   // Computed from the container list above, not hand-maintained separately
@@ -243,21 +244,32 @@ function buildEnvironment(addDevice, addEntity, opts) {
     if (c.health) {
       addEntity(entity(`sensor.${slug}_${c.name}_health`, devId, 'health', c.health));
     }
-    addEntity(entity(`sensor.${slug}_${c.name}_cpu_percent`, devId, 'container_cpu_percent', c.cpu.toFixed(1), { unit_of_measurement: '%', icon: 'mdi:cpu-64-bit' }));
+    // ha-dockhand creates neither control entity for a system container.
+    if (!c.systemContainer) {
+      addEntity(entity(`switch.${slug}_${c.name}`, devId, null, c.state === 'running' ? 'on' : 'off', { name: c.name }, { friendly_name: c.name }));
+      addEntity(entity(`button.${slug}_${c.name}_restart`, devId, 'restart', 'unknown'));
+    }
+    // Like ha-dockhand, stats sensors are unavailable for a container that
+    // isn't running — Docker reports no stats for it.
+    const stat = (v) => (c.state === 'running' ? v : 'unavailable');
+    // ha-dockhand's data-size sensors are native bytes with a suggested MiB
+    // display unit, so HA's state is in MiB — mirror that, not raw bytes.
+    const mib = (bytes) => stat(String(bytes / 1024 ** 2));
+    addEntity(entity(`sensor.${slug}_${c.name}_cpu_percent`, devId, 'container_cpu_percent', stat(c.cpu.toFixed(1)), { unit_of_measurement: '%', icon: 'mdi:cpu-64-bit' }));
     addEntity(
-      entity(`sensor.${slug}_${c.name}_memory_percent`, devId, 'container_memory_percent', c.mem.toFixed(1), { unit_of_measurement: '%', icon: 'mdi:memory' })
+      entity(`sensor.${slug}_${c.name}_memory_percent`, devId, 'container_memory_percent', stat(c.mem.toFixed(1)), { unit_of_measurement: '%', icon: 'mdi:memory' })
     );
     addEntity(
-      entity(`sensor.${slug}_${c.name}_memory_usage`, devId, 'container_memory_usage', Math.round(c.memLimit * (c.mem / 100) * 1024 * 1024), {
-        unit_of_measurement: 'B'
+      entity(`sensor.${slug}_${c.name}_memory_usage`, devId, 'container_memory_usage', mib(Math.round(c.memLimit * (c.mem / 100) * 1024 * 1024)), {
+        unit_of_measurement: 'MiB'
       })
     );
-    addEntity(entity(`sensor.${slug}_${c.name}_memory_limit`, devId, 'container_memory_limit', c.memLimit * 1024 * 1024, { unit_of_measurement: 'B' }));
+    addEntity(entity(`sensor.${slug}_${c.name}_memory_limit`, devId, 'container_memory_limit', mib(c.memLimit * 1024 * 1024), { unit_of_measurement: 'MiB' }));
     if (c.netRx !== undefined) {
-      addEntity(entity(`sensor.${slug}_${c.name}_network_rx`, devId, 'container_network_rx', c.netRx, { unit_of_measurement: 'B' }));
-      addEntity(entity(`sensor.${slug}_${c.name}_network_tx`, devId, 'container_network_tx', c.netTx, { unit_of_measurement: 'B' }));
-      addEntity(entity(`sensor.${slug}_${c.name}_block_read`, devId, 'container_block_read', c.blkRead, { unit_of_measurement: 'B' }));
-      addEntity(entity(`sensor.${slug}_${c.name}_block_write`, devId, 'container_block_write', c.blkWrite, { unit_of_measurement: 'B' }));
+      addEntity(entity(`sensor.${slug}_${c.name}_network_rx`, devId, 'container_network_rx', mib(c.netRx), { unit_of_measurement: 'MiB' }));
+      addEntity(entity(`sensor.${slug}_${c.name}_network_tx`, devId, 'container_network_tx', mib(c.netTx), { unit_of_measurement: 'MiB' }));
+      addEntity(entity(`sensor.${slug}_${c.name}_block_read`, devId, 'container_block_read', mib(c.blkRead), { unit_of_measurement: 'MiB' }));
+      addEntity(entity(`sensor.${slug}_${c.name}_block_write`, devId, 'container_block_write', mib(c.blkWrite), { unit_of_measurement: 'MiB' }));
     }
     if (c.update === 'hash') {
       addEntity(
@@ -271,8 +283,8 @@ function buildEnvironment(addDevice, addEntity, opts) {
       addEntity(
         entity(`update.${slug}_${c.name}_update`, devId, null, 'on', {
           name: c.name,
-          installed_version: 'Update available',
-          latest_version: 'Update available'
+          installed_version: 'latest',
+          latest_version: 'update-pending'
         })
       );
     } else {
@@ -288,6 +300,16 @@ function buildEnvironment(addDevice, addEntity, opts) {
   for (const s of stacks) {
     const devId = `stack_${envId}_${s.name}`;
     addDevice(device(devId, [`stack_${envId}_${s.name}`], s.name, { model: `${s.type} Stack`, configuration_url: `http://${slug}.example.internal:2376/stacks` }));
+    // Same as ha-dockhand: on while running or partially running.
+    addEntity(entity(`switch.${slug}_stacks_${s.name}`, devId, null, s.status === 'running' || s.status === 'partial' ? 'on' : 'off', { name: s.name }, { friendly_name: s.name }));
+    addEntity(entity(`button.${slug}_stacks_${s.name}_restart`, devId, 'restart', 'unknown'));
+    // A git stack's button relabels itself "Deploy"/"Sync from Git" (rocket/refresh icon) by whether
+    // the stack is deployed; an internal stack's is "Redeploy".
+    addEntity(
+      s.git
+        ? entity(`button.${slug}_stacks_${s.name}_git_deploy`, devId, 'git_stack_deploy', 'unknown', { icon: 'mdi:refresh' }, { friendly_name: `${s.name} Sync from Git` })
+        : entity(`button.${slug}_stacks_${s.name}_deploy`, devId, 'stack_deploy', 'unknown', { icon: 'mdi:rocket-launch-outline' }, { friendly_name: `${s.name} Redeploy` })
+    );
     addEntity(
       entity(`sensor.${slug}_${s.name}_status`, devId, 'status', s.status, {
         name: s.name,

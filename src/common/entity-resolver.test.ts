@@ -124,6 +124,16 @@ describe('findPrimaryEntityByDomain', () => {
     expect(findPrimaryEntityByDomain(hass, 'c1', 'update')).toBeNull();
   });
 
+  it('skips a same-domain entity that has a translation_key, regardless of registry order', () => {
+    const autoUpdate = makeEntity({ entity_id: 'switch.web_auto_update', device_id: 'c1', translation_key: 'container_auto_update' });
+    const running = makeEntity({ entity_id: 'switch.web', device_id: 'c1', translation_key: null });
+    const hass = makeHass({
+      entities: [autoUpdate, running],
+      states: [makeState({ entity_id: 'switch.web_auto_update', state: 'off' }), makeState({ entity_id: 'switch.web', state: 'on' })]
+    });
+    expect(findPrimaryEntityByDomain(hass, 'c1', 'switch')?.entityId).toBe('switch.web');
+  });
+
   it('never matches an entity belonging to a different device', () => {
     const entity = makeEntity({ entity_id: 'update.web', device_id: 'other', translation_key: null });
     const state = makeState({ entity_id: 'update.web', state: 'on' });

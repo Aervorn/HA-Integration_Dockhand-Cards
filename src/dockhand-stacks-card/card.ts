@@ -9,6 +9,8 @@ import { resolveCardName, migrateTitleToName, multiEnvCardNameFallback } from '.
 import { resolveIncludedOrderedWithLegacy, groupRowsByEnvironment, resolveEffectiveGroupBy } from '../common/environment-scope';
 import { resolveStackEntities, type ResolutionResult } from '../common/entity-resolver';
 import { getDockhandBaseUrl } from '../common/format';
+import { t } from '../common/i18n-card';
+import { stateLabel } from '../common/state-label';
 import { renderSettingsLink, renderIcon, onKeydownActivate } from '../common/icon';
 import type { StackTranslationKey } from '../common/const';
 import { DEFAULT_STACKS_BADGES, type DockhandStacksCardConfig, type StacksGroupBy, type StacksSortBy } from './types';
@@ -64,13 +66,22 @@ export function sortStackRows(rows: StackRow[], sortBy: StacksSortBy): StackRow[
   return sorted;
 }
 
-function groupKeyAndLabel(row: StackRow, groupBy: 'status' | 'type'): { key: string; label: string } {
-  if (groupBy === 'status') return { key: row.status, label: row.status.charAt(0).toUpperCase() + row.status.slice(1) };
-  // 'type'
-  return { key: row.type, label: row.type.charAt(0).toUpperCase() + row.type.slice(1) };
+function capitalize(_groupBy: 'status' | 'type', value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-export function groupStackRows(rows: StackRow[], groupBy: StacksGroupBy | undefined, sortBy: StacksSortBy, envDevices: EnvironmentDeviceOption[] = []): { label: string | null; rows: StackRow[] }[] {
+function groupKeyAndLabel(row: StackRow, groupBy: 'status' | 'type', label: (groupBy: 'status' | 'type', value: string) => string): { key: string; label: string } {
+  const value = groupBy === 'status' ? row.status : row.type;
+  return { key: value, label: label(groupBy, value) };
+}
+
+export function groupStackRows(
+  rows: StackRow[],
+  groupBy: StacksGroupBy | undefined,
+  sortBy: StacksSortBy,
+  envDevices: EnvironmentDeviceOption[] = [],
+  labelFor: (groupBy: 'status' | 'type', value: string) => string = capitalize
+): { label: string | null; rows: StackRow[] }[] {
   if (!groupBy || groupBy === 'none') return [{ label: null, rows: sortStackRows(rows, sortBy) }];
 
   // 'environment' groups by iterating envDevices directly — already in
@@ -87,7 +98,7 @@ export function groupStackRows(rows: StackRow[], groupBy: StacksGroupBy | undefi
 
   const buckets = new Map<string, { label: string; rows: StackRow[] }>();
   for (const row of rows) {
-    const { key, label } = groupKeyAndLabel(row, groupBy);
+    const { key, label } = groupKeyAndLabel(row, groupBy, labelFor);
     if (!buckets.has(key)) buckets.set(key, { label, rows: [] });
     buckets.get(key)!.rows.push(row);
   }
@@ -195,15 +206,17 @@ export class DockhandStacksCard extends LitElement implements LovelaceCard {
       return html`<ha-card>
         <div class="card-message error">
           <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-          <span>No environment selected. Edit this card to pick one or more.</span>
+          <span>${t(this._hass, 'msg_no_environment_selected')}</span>
         </div>
       </ha-card>`;
     }
 
     const representativeEntityId = getRepresentativeEntityId(this._hass, envDevices[0].deviceId);
-    const name = resolveCardName(this._hass, representativeEntityId, this._config.name, multiEnvCardNameFallback(envDevices, 'Stacks'));
+    const name = resolveCardName(this._hass, representativeEntityId, this._config.name, multiEnvCardNameFallback(envDevices, t(this._hass, 'name_stacks')));
     const base = this._resolveBaseUrl(envDevices);
-    const groups = groupStackRows(rows, resolveEffectiveGroupBy(this._config.group_by, envDevices, 'environment'), this._config.sort_by ?? 'name', envDevices);
+    const groups = groupStackRows(rows, resolveEffectiveGroupBy(this._config.group_by, envDevices, 'environment'), this._config.sort_by ?? 'name', envDevices, (by, value) =>
+      stateLabel(this._hass, by === 'status' ? 'stack_status' : 'stack_type', value)
+    );
 
     return html`
       <ha-card>
@@ -250,11 +263,11 @@ export class DockhandStacksCard extends LitElement implements LovelaceCard {
     const visible = new Set(this._config?.visible_badges ?? DEFAULT_STACKS_BADGES);
 
     return html`
-      <div class="row clickable" tabindex="0" role="button" @click=${() => this._moreInfo(id)} @keydown=${onKeydownActivate(() => this._moreInfo(id))}>
-        <div class="row-left">
-          <ha-icon class="row-icon ${statusIcon.cls}" icon=${statusIcon.icon}></ha-icon>
+      <div class="row clickable" @click=${() => this._moreInfo(id)}>
+        <div class="row-left row-target" tabindex="0" role="button" @keydown=${onKeydownActivate(() => this._moreInfo(id))}>
+          <ha-icon class="row-icon ${statusIcon.cls}" icon=${statusIcon.icon} title=${stateLabel(this._hass, 'stack_status', status, found.status!.state)}></ha-icon>
           <span class="item-name">${row.name}</span>
-          ${visible.has('type') ? html`<span class="label-pill">${row.type}</span>` : nothing}
+          ${visible.has('type') ? html`<span class="label-pill">${stateLabel(this._hass, 'stack_type', row.type)}</span>` : nothing}
           ${visible.has('environment') ? html`<span class="label-pill">${row.environment}</span>` : nothing}
         </div>
         <div class="row-right">
@@ -264,6 +277,7 @@ export class DockhandStacksCard extends LitElement implements LovelaceCard {
                 icon: 'mdi:arrow-up-circle',
                 colorClass: 'warn',
                 text: updateCount !== undefined ? `${updateCount}` : '',
+                title: t(this._hass, 'update_available'),
                 onClick: () => this._moreInfo(updatesId)
               })
             : nothing}
@@ -272,6 +286,7 @@ export class DockhandStacksCard extends LitElement implements LovelaceCard {
                 baseClass: 'row-icon',
                 icon: 'mdi:docker',
                 text: `${containerCount}`,
+                title: t(this._hass, 'label_containers'),
                 onClick: () => this._moreInfo(containerCountId)
               })
             : nothing}

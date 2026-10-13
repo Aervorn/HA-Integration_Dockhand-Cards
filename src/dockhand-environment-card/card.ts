@@ -14,18 +14,29 @@ import {
   type TopContainerEntry
 } from '../common/entity-resolver';
 import { REQUIRED_KEYS_BY_MODE, OPTIONAL_STATUS_KEYS, type EnvTranslationKey } from '../common/const';
-import { barColorClass, formatBytes, formatRelativeTime, getDockhandBaseUrl } from '../common/format';
+import { barColorClass, formatBytes, formatPercent, formatRelativeTime, getDockhandBaseUrl, memoryParts, numericState, type LocaleSource } from '../common/format';
+import { renderFitParts } from '../common/fit-parts';
+import { PairGridController } from '../common/pair-grid';
+import { cardLanguage, t, type CardTranslationKey } from '../common/i18n-card';
+import { stateLabel } from '../common/state-label';
 import { renderSettingsLink, renderIcon, onKeydownActivate } from '../common/icon';
 import { getLabelColors } from '../common/label-colors';
 import { joinWithDividers, mergeSections } from '../common/section-join';
 import { CUSTOM_SECTION_ORDER, DEFAULT_CUSTOM_SECTIONS, type CardMode, type CustomSection, type DockhandEnvironmentCardConfig } from './types';
 import { cardStyles } from './styles';
 
-const CONN_ICON: Record<string, { icon: string; color: string; title: string }> = {
-  socket: { icon: 'mdi:power-plug', color: '#22d3ee', title: 'Unix socket connection' },
-  direct: { icon: 'mdi:docker', color: '#3b82f6', title: 'Direct Docker connection' },
-  'hawser-standard': { icon: 'mdi:transit-connection-variant', color: '#a855f7', title: 'Hawser agent (standard mode)' },
-  'hawser-edge': { icon: 'mdi:undo-variant', color: '#22c55e', title: 'Hawser agent (edge mode)' }
+/** The environment memory sensor's state is the percentage; used/total
+ * bytes are attributes, either of which may be null when Dockhand omits it. */
+function envMemoryParts(percent: number, attrs: Record<string, unknown> | undefined, source: LocaleSource): string[] {
+  const bytes = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+  return memoryParts(percent, bytes(attrs?.memory_used_bytes), bytes(attrs?.memory_total_bytes), source);
+}
+
+const CONN_ICON: Record<string, { icon: string; color: string; title: CardTranslationKey }> = {
+  socket: { icon: 'mdi:power-plug', color: 'var(--dockhand-connection-socket-color)', title: 'conn_socket' },
+  direct: { icon: 'mdi:docker', color: 'var(--dockhand-connection-direct-color)', title: 'conn_direct' },
+  'hawser-standard': { icon: 'mdi:transit-connection-variant', color: 'var(--dockhand-connection-hawser-standard-color)', title: 'conn_hawser_standard' },
+  'hawser-edge': { icon: 'mdi:undo-variant', color: 'var(--dockhand-connection-hawser-edge-color)', title: 'conn_hawser_edge' }
 };
 
 // Mirrors Dockhand's own action -> icon mapping in dashboard-recent-events.svelte.
@@ -45,27 +56,29 @@ const EVENT_ICON: Record<string, string> = {
   health_status: 'mdi:heart-pulse'
 };
 
-// Mirrors Dockhand's own getActionColor() exactly, including which
-// actions group together. Keyed on the same bare-word action strings as
-// EVENT_ICON — see eventLookupKey() below for how health_status (whose
-// real stored value is a compound string, not a bare word) gets mapped
-// to this table's 'health_status' key.
-const EVENT_COLOR: Record<string, string> = {
-  create: '#34d399',
-  start: '#34d399',
-  unpause: '#34d399',
-  stop: '#fb7185',
-  die: '#fb7185',
-  kill: '#fb7185',
-  destroy: '#fb7185',
-  oom: '#fb7185',
-  restart: '#fbbf24',
-  pause: '#fbbf24',
-  update: '#fbbf24',
-  rename: '#fbbf24',
-  health_status: '#38bdf8'
+// Mirrors Dockhand's own getActionColor(), including which actions group
+// together. Keyed on the same bare-word action strings as EVENT_ICON — see
+// eventLookupKey() below for how health_status (whose real stored value is
+// a compound string, not a bare word) gets mapped to this table's
+// 'health_status' key. The colors themselves are custom properties
+// (styles.ts) so a theme or card_mod can change them.
+const EVENT_GROUP: Record<string, string> = {
+  create: 'start',
+  start: 'start',
+  unpause: 'start',
+  stop: 'stop',
+  die: 'stop',
+  kill: 'stop',
+  destroy: 'stop',
+  oom: 'stop',
+  restart: 'change',
+  pause: 'change',
+  update: 'change',
+  rename: 'change',
+  health_status: 'health'
 };
-const EVENT_COLOR_DEFAULT = '#94a3b8';
+const EVENT_COLOR: Record<string, string> = Object.fromEntries(Object.entries(EVENT_GROUP).map(([action, group]) => [action, `var(--dockhand-event-${group}-color)`]));
+const EVENT_COLOR_DEFAULT = 'var(--dockhand-event-other-color)';
 
 /** Resolves an event's raw action string to the key EVENT_ICON/EVENT_COLOR
  * are keyed by. Every action except health_status is already a bare word
@@ -87,18 +100,19 @@ const EVENT_COLOR_DEFAULT = '#94a3b8';
  * `pending_updates_total`; older releases' total left out newer-version-tag
  * suggestions, and releases before 1.8.2 had only `pending_updates`. The
  * tooltip breaks the total down when there's more than one kind. */
-export function pendingUpdateSummary(attrs: Record<string, unknown>): { count: number; title: string } {
+export function pendingUpdateSummary(attrs: Record<string, unknown>, hass?: LocaleSource): { count: number; title: string } {
   const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
   const installable = num(attrs.pending_updates);
   const system = num(attrs.pending_system_updates);
   const versions = num(attrs.pending_version_updates);
   const count = typeof attrs.pending_updates_total === 'number' ? num(attrs.pending_updates_total) : installable;
   const parts = [
-    installable > 0 ? `${installable} installable` : '',
-    system > 0 ? `${system} system` : '',
-    versions > 0 ? `${versions} new version tag${versions === 1 ? '' : 's'}` : ''
+    installable > 0 ? t(hass, 'pending_installable', { count: installable }) : '',
+    system > 0 ? t(hass, 'pending_system', { count: system }) : '',
+    versions > 0 ? t(hass, 'pending_version_tags', { count: versions }) : ''
   ].filter(Boolean);
-  return { count, title: parts.length > 1 ? `Pending updates: ${parts.join(', ')}` : 'Pending updates' };
+  const title = t(hass, 'pending_updates');
+  return { count, title: parts.length > 1 ? `${title} — ${parts.join(', ')}` : title };
 }
 
 export function eventLookupKey(action: string): string {
@@ -119,6 +133,11 @@ interface HistoryPoint {
 }
 
 export class DockhandEnvironmentCard extends LitElement implements LovelaceCard {
+  constructor() {
+    super();
+    new PairGridController(this);
+  }
+
   static styles = cardStyles;
 
   @state() private _config?: DockhandEnvironmentCardConfig;
@@ -317,11 +336,11 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
 
     return html`
       <div class="sparkline-wrap">
-        <svg viewBox="0 0 ${w} ${h}" class="sparkline" preserveAspectRatio="none" @mousemove=${onMove} @mouseleave=${onLeave}>
-          <polygon points=${area} fill=${color} opacity="0.3" />
-          <polyline points=${line} fill="none" stroke=${color} stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+        <svg viewBox="0 0 ${w} ${h}" class="sparkline" preserveAspectRatio="none" aria-hidden="true" @mousemove=${onMove} @mouseleave=${onLeave}>
+          <polygon points=${area} style="fill:${color}" opacity="0.3" />
+          <polyline points=${line} fill="none" style="stroke:${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
           ${hoverX !== null
-            ? html`<line x1=${hoverX} y1="0" x2=${hoverX} y2=${h} stroke=${color} stroke-width="1" stroke-dasharray="2,2" opacity="0.6" />`
+            ? html`<line x1=${hoverX} y1="0" x2=${hoverX} y2=${h} style="stroke:${color}" stroke-width="1" stroke-dasharray="2,2" opacity="0.6" />`
             : nothing}
         </svg>
         ${this._hoverPoint?.chart === chart ? this._renderTooltip(this._hoverPoint.point, this._hoverPoint.xFraction, color) : nothing}
@@ -331,7 +350,7 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
 
   private _renderTooltip(point: HistoryPoint, xFraction: number, color: string): TemplateResult {
     const date = new Date(point.timestampMs);
-    const timeLabel = date.toLocaleString(undefined, {
+    const timeLabel = date.toLocaleString(cardLanguage(this._hass), {
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
@@ -344,7 +363,7 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
     return html`
       <div class="chart-tooltip ${side}" style="left:${(xFraction * 100).toFixed(2)}%">
         <div class="chart-tooltip-time">${timeLabel}</div>
-        <div class="chart-tooltip-value"><span class="chart-tooltip-dot" style="background:${color}"></span>${point.value.toFixed(1)}%</div>
+        <div class="chart-tooltip-value"><span class="chart-tooltip-dot" style="background:${color}"></span>${formatPercent(point.value, this._hass)}</div>
       </div>
     `;
   }
@@ -369,34 +388,33 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
     // the same moment. The sparkline's shape still correctly comes from
     // the history data below — that's a trend line, where a little lag
     // is expected and fine; a current-value label is not.
-    const cpuNow = s.cpuUsage ? Number(s.cpuUsage.state.state) : undefined;
-    const memNow = s.memoryUsage ? Number(s.memoryUsage.state.state) : undefined;
-    const memBytes = s.memoryUsage?.state.attributes.memory_used_bytes;
+    const cpuNow = numericState(s.cpuUsage?.state.state);
+    const memNow = numericState(s.memoryUsage?.state.state);
 
     return html`
       <div class="section">
-        <div class="section-title"><ha-icon icon="mdi:cpu-64-bit"></ha-icon> CPU &amp; Memory history</div>
-        ${hasCpu && cpuNow !== undefined
+        <div class="section-title"><ha-icon icon="mdi:cpu-64-bit"></ha-icon> ${t(this._hass, 'label_cpu_memory_history')}</div>
+        ${hasCpu && s.cpuUsage
           ? html`
               <div class="stacked-pair">
                 <div class="row">
-                  <span>CPU</span>
-                  <span class="chart-value">${cpuNow.toFixed(1)}%</span>
+                  <span>${t(this._hass, 'label_cpu')}</span>
+                  <span class="chart-value">${cpuNow !== undefined ? formatPercent(cpuNow, this._hass) : '—'}</span>
                 </div>
-                ${this._sparkline('cpu', this._cpuHistory, '#10b981')}
+                ${this._sparkline('cpu', this._cpuHistory, 'var(--dockhand-chart-cpu-color)')}
               </div>
             `
           : nothing}
-        ${hasMem && memNow !== undefined
+        ${hasMem && s.memoryUsage
           ? html`
               <div class="stacked-pair">
                 <div class="row">
-                  <span>Memory</span>
-                  <span class="chart-value"
-                    >${memNow.toFixed(1)}%${typeof memBytes === 'number' ? ` (${formatBytes(memBytes)})` : ''}</span
-                  >
+                  <span>${t(this._hass, 'label_memory')}</span>
+                  ${memNow !== undefined
+                    ? renderFitParts(envMemoryParts(memNow, s.memoryUsage.state.attributes, this._hass), 'chart-value')
+                    : html`<span class="chart-value">—</span>`}
                 </div>
-                ${this._sparkline('mem', this._memHistory, '#3b82f6')}
+                ${this._sparkline('mem', this._memHistory, 'var(--dockhand-chart-memory-color)')}
               </div>
             `
           : nothing}
@@ -407,12 +425,12 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
   private _renderDiskUsage(s: ResolutionResult<EnvTranslationKey>['found']): TemplateResult | typeof nothing {
     if (!s.diskUsage) return nothing;
     const a = s.diskUsage.state.attributes;
-    // Colors and order match Dockhand's own dashboard-disk-usage.svelte exactly.
+    // Order and default colors (styles.ts) match Dockhand's own dashboard-disk-usage.svelte.
     const items: { label: string; bytes: number; color: string }[] = [
-      { label: 'Images', bytes: Number(a.images_size_bytes) || 0, color: '#0ea5e9' },
-      { label: 'Containers', bytes: Number(a.containers_size_bytes) || 0, color: '#10b981' },
-      { label: 'Volumes', bytes: Number(a.volumes_size_bytes) || 0, color: '#f59e0b' },
-      { label: 'Build cache', bytes: Number(a.build_cache_size_bytes) || 0, color: '#8b5cf6' }
+      { label: t(this._hass, 'label_images'), bytes: Number(a.images_size_bytes) || 0, color: 'var(--dockhand-disk-images-color)' },
+      { label: t(this._hass, 'label_containers'), bytes: Number(a.containers_size_bytes) || 0, color: 'var(--dockhand-disk-containers-color)' },
+      { label: t(this._hass, 'label_volumes'), bytes: Number(a.volumes_size_bytes) || 0, color: 'var(--dockhand-disk-volumes-color)' },
+      { label: t(this._hass, 'label_build_cache'), bytes: Number(a.build_cache_size_bytes) || 0, color: 'var(--dockhand-disk-build-cache-color)' }
     ].filter((i) => i.bytes > 0);
     if (items.length === 0) return nothing;
 
@@ -488,13 +506,13 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
       >
         <div class="section-title">
           <ha-icon icon="mdi:harddisk"></ha-icon>
-          <span>Disk usage</span>
-          <span class="section-title-value">${formatBytes(total)}</span>
+          <span>${t(this._hass, 'label_disk_usage')}</span>
+          <span class="section-title-value">${formatBytes(total, this._hass)}</span>
         </div>
         <div class="row-left disk-chart-row">
-          <svg class="disk-donut" viewBox="0 0 ${SIZE} ${SIZE}">
+          <svg class="disk-donut" viewBox="0 0 ${SIZE} ${SIZE}" aria-hidden="true">
             <g transform="translate(${CENTER}, ${CENTER})">
-              ${segments.map((seg) => svg`<path d=${arcGenerator(seg) ?? ''} fill=${seg.color}></path>`)}
+              ${segments.map((seg) => svg`<path d=${arcGenerator(seg) ?? ''} style="fill:${seg.color}"></path>`)}
             </g>
             ${boundaries.map((angle) => {
               const { x1, y1, x2, y2 } = spokePoints(angle);
@@ -503,7 +521,7 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
                 y1=${y1}
                 x2=${x2}
                 y2=${y2}
-                stroke="var(--card-background-color, #1c1c1c)"
+                style="stroke: var(--card-background-color, #1c1c1c)"
                 stroke-width=${GAP_PX}
                 stroke-linecap="round"
               ></line>`;
@@ -517,7 +535,7 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
                     <span class="disk-dot" style="background:${item.color}"></span>
                     <span class="item-name">${item.label}</span>
                   </span>
-                  <span class="row-right">${formatBytes(item.bytes)}</span>
+                  <span class="row-right">${formatBytes(item.bytes, this._hass)}</span>
                 </div>
               `
             )}
@@ -550,7 +568,7 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
       return html`<ha-card>
         <div class="card-message error">
           <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-          <span>Please select a Dockhand environment — edit this card to pick one.</span>
+          <span>${t(this._hass, 'msg_select_environment')}</span>
         </div>
       </ha-card>`;
     }
@@ -560,7 +578,7 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
       return html`<ha-card>
         <div class="card-message error">
           <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-          <span>Environment device not found. It may have been removed — edit this card to pick another.</span>
+          <span>${t(this._hass, 'msg_environment_not_found')}</span>
         </div>
       </ha-card>`;
     }
@@ -572,7 +590,7 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
     const s = resolution.found;
 
     const representativeEntityId = getRepresentativeEntityId(this._hass, this._config.device_id);
-    const name = resolveCardName(this._hass, representativeEntityId, this._config.name, device.name_by_user || device.name || 'Environment');
+    const name = resolveCardName(this._hass, representativeEntityId, this._config.name, device.name_by_user || device.name || t(this._hass, 'name_environment'));
     const online = s.online?.state.state === 'on';
     const isUnavailableCore = !s.online;
     const labels: string[] = Array.isArray(s.online?.state.attributes.labels) ? s.online!.state.attributes.labels : [];
@@ -670,7 +688,7 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
                   baseClass: 'header-icon',
                   icon: connFallback.icon,
                   color: connFallback.color,
-                  title: connFallback.title,
+                  title: t(this._hass, connFallback.title),
                   static: true
                 })
               : nothing}
@@ -740,7 +758,7 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
     return html`
       <div class="card-message">
         <ha-icon icon="mdi:wifi-off"></ha-icon>
-        <span>Environment offline</span>
+        <span>${t(this._hass, 'msg_environment_offline')}</span>
       </div>
     `;
   }
@@ -759,17 +777,17 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
     const total = s.containers.state.state ?? '—';
     const unhealthy = Number(c.unhealthy ?? 0);
     const restarting = Number(c.restarting ?? 0);
-    const updates = pendingUpdateSummary(c);
+    const updates = pendingUpdateSummary(c, this._hass);
     const id = s.containers.entityId;
 
     const healthClass = unhealthy > 0 ? 'warn' : restarting > 0 ? 'error' : 'ok';
     const healthIcon = unhealthy > 0 ? 'mdi:alert' : restarting > 0 ? 'mdi:refresh' : 'mdi:check-circle';
     const healthText =
       unhealthy > 0
-        ? `${unhealthy} container${unhealthy === 1 ? '' : 's'} unhealthy`
+        ? t(this._hass, 'containers_unhealthy', { count: unhealthy })
         : restarting > 0
-          ? `${restarting} container${restarting === 1 ? '' : 's'} restarting`
-          : 'All containers healthy';
+          ? t(this._hass, 'containers_restarting', { count: restarting })
+          : t(this._hass, 'containers_all_healthy');
 
     return html`
       <div
@@ -779,15 +797,15 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
         @click=${() => this._moreInfo(id)}
         @keydown=${onKeydownActivate(() => this._moreInfo(id))}
       >
-        ${renderIcon({ baseClass: 'stat', icon: 'mdi:play', color: 'var(--dockhand-status-ok-color)', text: `${c.running ?? 0}`, title: 'Running', static: true })}
-        ${renderIcon({ baseClass: 'stat', icon: 'mdi:stop', color: 'var(--secondary-text-color)', text: `${c.stopped ?? 0}`, title: 'Stopped', static: true })}
-        ${renderIcon({ baseClass: 'stat', icon: 'mdi:pause', color: 'var(--dockhand-status-warn-color)', text: `${c.paused ?? 0}`, title: 'Paused', static: true })}
+        ${renderIcon({ baseClass: 'stat', icon: 'mdi:play', color: 'var(--dockhand-status-ok-color)', text: `${c.running ?? 0}`, title: t(this._hass, 'stat_running'), static: true })}
+        ${renderIcon({ baseClass: 'stat', icon: 'mdi:stop', color: 'var(--secondary-text-color)', text: `${c.stopped ?? 0}`, title: t(this._hass, 'stat_stopped'), static: true })}
+        ${renderIcon({ baseClass: 'stat', icon: 'mdi:pause', color: 'var(--dockhand-status-warn-color)', text: `${c.paused ?? 0}`, title: t(this._hass, 'stat_paused'), static: true })}
         ${renderIcon({
           baseClass: 'stat',
           icon: 'mdi:refresh',
           color: restarting > 0 ? 'var(--dockhand-status-error-color)' : 'var(--dockhand-status-ok-color)',
           text: `${restarting}`,
-          title: 'Restarting',
+          title: t(this._hass, 'stat_restarting'),
           static: true
         })}
         ${renderIcon({
@@ -795,7 +813,7 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
           icon: 'mdi:alert',
           color: unhealthy > 0 ? 'var(--dockhand-status-error-color)' : 'var(--dockhand-status-ok-color)',
           text: `${unhealthy}`,
-          title: 'Unhealthy',
+          title: t(this._hass, 'stat_unhealthy'),
           static: true
         })}
         ${renderIcon({
@@ -806,7 +824,7 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
           title: updates.title,
           static: true
         })}
-        <span class="stat">Total ${total}</span>
+        <span class="stat">${t(this._hass, 'label_total', { count: total })}</span>
       </div>
 
       <div
@@ -823,11 +841,9 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
   }
 
   private _renderMetricsSection(s: ResolutionResult<EnvTranslationKey>['found']): TemplateResult | typeof nothing {
-    if (!s.cpuUsage && !s.memoryUsage) return nothing;
-    const cpu = s.cpuUsage ? Number(s.cpuUsage.state.state) : undefined;
-    const mem = s.memoryUsage ? Number(s.memoryUsage.state.state) : undefined;
+    const cpu = numericState(s.cpuUsage?.state.state);
+    const mem = numericState(s.memoryUsage?.state.state);
     if (cpu === undefined && mem === undefined) return nothing;
-    const memUsed = s.memoryUsage?.state.attributes.memory_used_bytes;
     const cpuId = s.cpuUsage?.entityId;
     const memId = s.memoryUsage?.entityId;
 
@@ -843,8 +859,8 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
                 @keydown=${onKeydownActivate(() => this._moreInfo(cpuId))}
               >
                 <div class="row">
-                  ${renderIcon({ baseClass: 'row-icon', hass: this._hass, stateObj: s.cpuUsage!.state, text: 'CPU', static: true })}
-                  <span class="row-right">${cpu.toFixed(1)}%</span>
+                  ${renderIcon({ baseClass: 'row-icon', hass: this._hass, stateObj: s.cpuUsage!.state, text: t(this._hass, 'label_cpu'), static: true })}
+                  <span class="row-right">${formatPercent(cpu, this._hass)}</span>
                 </div>
                 <div class="bar-track">
                   <div class="bar-fill ${barColorClass(cpu)}" style="width:${Math.min(cpu, 100)}%"></div>
@@ -862,8 +878,8 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
                 @keydown=${onKeydownActivate(() => this._moreInfo(memId))}
               >
                 <div class="row">
-                  ${renderIcon({ baseClass: 'row-icon', hass: this._hass, stateObj: s.memoryUsage!.state, text: 'Memory', static: true })}
-                  <span class="row-right">${mem.toFixed(1)}% (${formatBytes(memUsed)})</span>
+                  ${renderIcon({ baseClass: 'row-icon', hass: this._hass, stateObj: s.memoryUsage!.state, text: t(this._hass, 'label_memory'), static: true })}
+                  ${renderFitParts(envMemoryParts(mem, s.memoryUsage!.state.attributes, this._hass))}
                 </div>
                 <div class="bar-track">
                   <div class="bar-fill ${barColorClass(mem)}" style="width:${Math.min(mem, 100)}%"></div>
@@ -876,20 +892,20 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
   }
 
   private _renderResourceGrid(s: ResolutionResult<EnvTranslationKey>['found']): TemplateResult | typeof nothing {
-    const items: { label: string; entry: ResolutionResult<EnvTranslationKey>['found'][EnvTranslationKey] }[] = [
-      { label: 'Images', entry: s.imageCount },
-      { label: 'Stacks', entry: s.stacks },
-      { label: 'Volumes', entry: s.volumeCount },
-      { label: 'Networks', entry: s.networkCount }
+    const items: { key: 'images' | 'stacks' | 'volumes' | 'networks'; label: string; entry: ResolutionResult<EnvTranslationKey>['found'][EnvTranslationKey] }[] = [
+      { key: 'images', label: t(this._hass, 'label_images'), entry: s.imageCount },
+      { key: 'stacks', label: t(this._hass, 'label_stacks'), entry: s.stacks },
+      { key: 'volumes', label: t(this._hass, 'label_volumes'), entry: s.volumeCount },
+      { key: 'networks', label: t(this._hass, 'label_networks'), entry: s.networkCount }
     ];
-    const available = items.filter((i) => i.entry);
+    const available = items.filter((i) => numericState(i.entry?.state.state) !== undefined);
     if (available.length === 0) return nothing;
 
     return html`
       <div class="grid-2">
         ${available.map((item) => {
           const entry = item.entry!;
-          const isStacks = item.label === 'Stacks';
+          const isStacks = item.key === 'stacks';
           const stackAttrs = isStacks ? entry.state.attributes : undefined;
           return html`
             <div
@@ -902,7 +918,7 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
               ${renderIcon({ baseClass: 'row-icon', hass: this._hass, stateObj: entry.state, text: item.label, static: true })}
               <span class="row-right breakdown">
                 ${entry.state.state}
-                ${isStacks && Number(entry.state.state) > 0
+                ${isStacks && (numericState(entry.state.state) ?? 0) > 0
                   ? html`
                       <span class="running">${stackAttrs?.running ?? 0}</span>/<span class="partial">${stackAttrs?.partial ?? 0}</span>/<span
                         class="stopped"
@@ -933,8 +949,8 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
         @click=${() => this._moreInfo(id)}
         @keydown=${onKeydownActivate(() => this._moreInfo(id))}
       >
-        ${renderIcon({ baseClass: 'row-icon', hass: this._hass, stateObj: s.activityEvents.state, text: 'Events', static: true })}
-        <span class="row-right">${eventsToday} today <span>/ ${eventsTotal} total</span></span>
+        ${renderIcon({ baseClass: 'row-icon', hass: this._hass, stateObj: s.activityEvents.state, text: t(this._hass, 'label_events'), static: true })}
+        <span class="row-right">${t(this._hass, 'events_today', { count: eventsToday })} <span>/ ${t(this._hass, 'events_total', { count: eventsTotal })}</span></span>
       </div>
     `;
   }
@@ -972,7 +988,7 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
     if (selected.size === 0) {
       return html`<div class="card-message warn">
         <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-        <span>No sections selected — edit this card to choose what to show.</span>
+        <span>${t(this._hass, 'msg_no_sections_selected')}</span>
       </div>`;
     }
 
@@ -1018,15 +1034,15 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
     if (entries.length === 0) return nothing;
     return html`
       <div class="section">
-        <div class="section-title"><ha-icon icon="mdi:package-variant"></ha-icon> Top containers by CPU</div>
+        <div class="section-title"><ha-icon icon="mdi:package-variant"></ha-icon> ${t(this._hass, 'label_top_containers')}</div>
         <div class="list">
           ${entries.map(
             (c) => html`
               <div class="row">
                 <span class="item-name">${c.name}</span>
                 <div class="row-right">
-                  ${renderIcon({ baseClass: 'row-icon', icon: 'mdi:cpu-64-bit', text: c.cpuPercent !== null ? `${c.cpuPercent.toFixed(0)}%` : '—', static: true })}
-                  ${renderIcon({ baseClass: 'row-icon', icon: 'mdi:memory', text: c.memoryPercent !== null ? `${c.memoryPercent.toFixed(0)}%` : '—', static: true })}
+                  ${renderIcon({ baseClass: 'row-icon', icon: 'mdi:cpu-64-bit', text: c.cpuPercent !== null ? formatPercent(c.cpuPercent, this._hass, 0) : '—', title: t(this._hass, 'label_cpu'), static: true })}
+                  ${renderIcon({ baseClass: 'row-icon', icon: 'mdi:memory', text: c.memoryPercent !== null ? formatPercent(c.memoryPercent, this._hass, 0) : '—', title: t(this._hass, 'label_memory'), static: true })}
                 </div>
               </div>
             `
@@ -1047,7 +1063,7 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
           @click=${() => this._moreInfo(activityEntityId)}
           @keydown=${onKeydownActivate(() => this._moreInfo(activityEntityId))}
         >
-          <ha-icon icon="mdi:pulse"></ha-icon> Recent events
+          <ha-icon icon="mdi:pulse"></ha-icon> ${t(this._hass, 'label_recent_events')}
         </div>
         <div class="list">
           ${events.slice(0, 8).map(
@@ -1057,12 +1073,12 @@ export class DockhandEnvironmentCard extends LitElement implements LovelaceCard 
                   <ha-icon
                     icon=${(e.action && EVENT_ICON[eventLookupKey(e.action)]) || 'mdi:pulse'}
                     style="color:${(e.action && EVENT_COLOR[eventLookupKey(e.action)]) || EVENT_COLOR_DEFAULT}"
-                    title=${e.action ?? ''}
+                    title=${e.action ? stateLabel(this._hass, 'event', eventLookupKey(e.action)) : ''}
                   ></ha-icon>
-                  <span class="item-name">${e.container_name ?? 'unknown'}</span>
+                  <span class="item-name">${e.container_name ?? t(this._hass, 'label_unknown')}</span>
                 </div>
                 ${e.timestamp
-                  ? html`<span class="row-right">${formatRelativeTime(e.timestamp)}</span>`
+                  ? html`<span class="row-right">${formatRelativeTime(e.timestamp, this._hass)}</span>`
                   : nothing}
               </div>
             `

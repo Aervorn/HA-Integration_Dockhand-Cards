@@ -23,7 +23,7 @@ python3 -m playwright install chromium
 ```bash
 # from the repo root
 npm run build                      # produces dist/ha-dockhand-cards.js
-cp dist/ha-dockhand-cards.js tools/screenshot-harness/
+cp dist/*.js tools/screenshot-harness/      # card and editor bundles
 cd tools/screenshot-harness
 python3 -m http.server 8931 &
 python3 screenshot.py
@@ -36,6 +36,20 @@ dashboard background instead of a transparent one. Overview uses both, since its
 outside any card and would otherwise be unreadable whenever the README's page background doesn't
 match the theme. Copy whichever ones you want into
 `docs/images/` and reference them from `README.md`.
+
+### Accessibility check
+
+```bash
+python3 a11y.py              # report violations, exit 1 if any
+python3 a11y.py --verbose    # also list every affected element
+```
+
+Runs [axe-core](https://github.com/dequelabs/axe-core) (installed by `npm install` here) with its
+WCAG 2.1 A/AA rules over every card in `screenshot.py`'s `CARDS`, a few extra states the
+screenshots don't show, and every editor, in both themes, on HA's dashboard background. Elements
+drawn by `ha-shims.mjs` (stand-ins for HA's own components) are skipped. So is text in HA's own default theme colors: the cards use those unchanged on purpose, so they match the rest of HA. It checks what can be
+checked mechanically — names, roles, nesting, text contrast — not whether a card makes sense read
+aloud; that still needs a manual screen-reader pass.
 
 ### Editor screenshots
 

@@ -1,3 +1,5 @@
+import type { EditorTranslationKey } from './i18n-editor';
+
 export const DOCKHAND_DOMAIN = 'dockhand';
 /** Injected at build time from package.json's own version (see
  * rollup.config.mjs's replace plugin) — never hand-edit this string
@@ -62,8 +64,7 @@ export const CONTAINER_TRANSLATION_KEYS = {
   networkRx: 'container_network_rx',
   networkTx: 'container_network_tx',
   blockRead: 'container_block_read',
-  blockWrite: 'container_block_write',
-  restart: 'restart'
+  blockWrite: 'container_block_write'
 } as const;
 
 export type ContainerTranslationKey = keyof typeof CONTAINER_TRANSLATION_KEYS;
@@ -78,8 +79,7 @@ export const STACK_TRANSLATION_KEYS = {
   updatesAvailable: 'stack_updates_available',
   gitSyncStatus: 'git_stack_sync_status',
   gitLastSync: 'git_stack_last_sync',
-  gitSyncError: 'git_stack_sync_error',
-  restart: 'restart'
+  gitSyncError: 'git_stack_sync_error'
 } as const;
 
 export type StackTranslationKey = keyof typeof STACK_TRANSLATION_KEYS;
@@ -173,37 +173,37 @@ export const OPTIONAL_STATUS_KEYS: EnvTranslationKey[] = [
 // a user configuring the card benefits from knowing what more they could
 // enable, but shouldn't see that reminder permanently on a dashboard once
 // they've decided not to enable something.
-export const ENV_FRIENDLY_LABEL: Partial<Record<EnvTranslationKey, string>> = {
-  online: 'Online status',
-  cpuUsage: 'CPU usage',
-  memoryUsage: 'Memory usage',
-  containers: 'Container counts',
-  stacks: 'Stack counts',
-  imageCount: 'Image count',
-  volumeCount: 'Volume count',
-  networkCount: 'Network count',
-  activityEvents: 'Activity events',
-  diskUsage: 'Disk usage'
+export const ENV_FRIENDLY_LABEL: Partial<Record<EnvTranslationKey, EditorTranslationKey>> = {
+  online: 'entity_online_status',
+  cpuUsage: 'entity_cpu_usage',
+  memoryUsage: 'entity_memory_usage',
+  containers: 'entity_container_counts',
+  stacks: 'entity_stack_counts',
+  imageCount: 'entity_image_count',
+  volumeCount: 'entity_volume_count',
+  networkCount: 'entity_network_count',
+  activityEvents: 'entity_activity_events',
+  diskUsage: 'entity_disk_usage'
 };
 
-export const CONTAINER_FRIENDLY_LABEL: Partial<Record<ContainerTranslationKey, string>> = {
-  cpuPercent: 'CPU usage',
-  memoryPercent: 'Memory usage %',
-  memoryUsage: 'Memory usage',
-  memoryLimit: 'Memory limit',
-  networkRx: 'Network RX',
-  networkTx: 'Network TX',
-  blockRead: 'Block read',
-  blockWrite: 'Block write'
+export const CONTAINER_FRIENDLY_LABEL: Partial<Record<ContainerTranslationKey, EditorTranslationKey>> = {
+  cpuPercent: 'entity_cpu_usage',
+  memoryPercent: 'entity_memory_usage_percent',
+  memoryUsage: 'entity_memory_usage',
+  memoryLimit: 'entity_memory_limit',
+  networkRx: 'entity_network_rx',
+  networkTx: 'entity_network_tx',
+  blockRead: 'entity_block_read',
+  blockWrite: 'entity_block_write'
 };
 
-export const STACK_FRIENDLY_LABEL: Partial<Record<StackTranslationKey, string>> = {
-  status: 'Stack status',
-  containersInStack: 'Container count',
-  updatesAvailable: 'Pending-updates badge',
-  gitSyncStatus: 'Git sync status',
-  gitLastSync: 'Git last sync time',
-  gitSyncError: 'Git sync error banner'
+export const STACK_FRIENDLY_LABEL: Partial<Record<StackTranslationKey, EditorTranslationKey>> = {
+  status: 'entity_stack_status',
+  containersInStack: 'entity_container_count',
+  updatesAvailable: 'entity_pending_updates_badge',
+  gitSyncStatus: 'entity_git_sync_status',
+  gitLastSync: 'entity_git_last_sync',
+  gitSyncError: 'entity_git_sync_error'
 };
 
 // Dockhand's own container health values — shared between Container
@@ -247,7 +247,11 @@ export const CONTAINER_STATE_CLASS: Record<string, string> = {
   dead: 'neutral'
 };
 
-/** Default header icons — overridable via the `icon` config option on
- * cards that support it (Containers list, individual Stack). */
-export const DEFAULT_CONTAINERS_ICON = 'mdi:docker';
+/** Default header badges for the Container and Stack cards, used when their
+ * `icon` config option is unset. */
+export const DEFAULT_CONTAINER_ICON = 'mdi:docker';
 export const DEFAULT_STACK_ICON = 'mdi:layers';
+
+/** ha-dockhand's `latest_version` when an update is pending but Dockhand gave
+ * no version or tag for it — shown as "Update available", never verbatim. */
+export const UPDATE_PENDING_VERSION = 'update-pending';

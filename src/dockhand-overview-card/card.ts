@@ -15,6 +15,7 @@ import type { DockhandUpdatesCardConfig } from '../dockhand-updates-card/types';
 import type { DockhandSchedulesCardConfig } from '../dockhand-schedules-card/types';
 import { DEFAULT_SECTION_ORDER, enabledSections, getEnvironmentOrder, getEnvironmentOverrides, type DockhandOverviewCardConfig, type OverviewSection } from './types';
 import { cardStyles } from './styles';
+import { t } from '../common/i18n-card';
 
 /** Resolves one generated child card's field: a per-environment override
  * wins if set, otherwise the section-wide global default if set,
@@ -273,7 +274,7 @@ export class DockhandOverviewCard extends LitElement implements LovelaceCard {
     if (devices.length === 0) {
       return html`<div class="card-message">
         <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-        <span>No Dockhand environments found.</span>
+        <span>${t(this._hass, 'msg_no_environments_found')}</span>
       </div>`;
     }
 
@@ -287,7 +288,7 @@ export class DockhandOverviewCard extends LitElement implements LovelaceCard {
     ) {
       return html`<div class="card-message">
         <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-        <span>Every section is turned off — edit this card to enable at least one.</span>
+        <span>${t(this._hass, 'msg_all_sections_off')}</span>
       </div>`;
     }
 

@@ -37,7 +37,7 @@ describe('pendingUpdateSummary', () => {
   it('counts the total, matching the Updates card rows, not just installable updates', () => {
     const r = pendingUpdateSummary({ pending_updates: 1, pending_system_updates: 1, pending_version_updates: 2, pending_updates_total: 4 });
     expect(r.count).toBe(4);
-    expect(r.title).toBe('Pending updates: 1 installable, 1 system, 2 new version tags');
+    expect(r.title).toBe('Pending updates — Installable: 1, System: 1, New version tags: 2');
   });
 
   it('keeps the plain title when only one kind is pending', () => {

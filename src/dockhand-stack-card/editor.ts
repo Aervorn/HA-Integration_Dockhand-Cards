@@ -77,6 +77,7 @@ export class DockhandStackCardEditor extends LitElement implements LovelaceCardE
           cardNameFieldSchema(this._config?.device_id && this._hass ? getRepresentativeEntityId(this._hass, this._config.device_id) : undefined, [{ type: 'device' }]),
           { name: 'icon', selector: { icon: {} } },
           { name: 'show_settings_link', default: true, selector: { boolean: {} } },
+          { name: 'show_controls', default: true, selector: { boolean: {} } },
           {
             name: 'visible_sections',
             type: 'multi_select',
@@ -126,6 +127,8 @@ export class DockhandStackCardEditor extends LitElement implements LovelaceCardE
         return t(this._hass, 'show_settings_link');
       case 'visible_sections':
         return t(this._hass, 'visible_sections_label');
+      case 'show_controls':
+        return t(this._hass, 'show_controls');
       case 'icon':
         return t(this._hass, 'icon');
       default:
@@ -155,9 +158,13 @@ export class DockhandStackCardEditor extends LitElement implements LovelaceCardE
     if (relevant.length === 0) return {};
 
     const names = relevant
-      .map((u) => `${STACK_FRIENDLY_LABEL[u.key] ?? u.key}${u.reason === 'not_found' ? ' (requires a newer ha-dockhand release)' : ''}`)
+      .map((u) => {
+        const label = STACK_FRIENDLY_LABEL[u.key];
+        const name = label ? t(this._hass, label) : u.key;
+        return u.reason === 'not_found' ? `${name} ${t(this._hass, 'requires_newer_integration_suffix')}` : name;
+      })
       .join(', ');
-    return { device_id: `This card would show more with these entities enabled: ${names}.` };
+    return { device_id: t(this._hass, 'availability_hint', { names }) };
   }
 
   /** Plain passthrough — see DockhandContainerCardEditor's identical

@@ -33,7 +33,14 @@
     --primary-text-color: #e1e1e1;
     --secondary-text-color: #9b9b9b;
     --divider-color: #333333;
-    --primary-color: #0ea5e9;
+    /* Home Assistant's own defaults (frontend src/resources/theme/color/
+       color.globals.ts) — the same in both themes — so the contrast
+       check in a11y.py measures what a real dashboard shows. */
+    --primary-color: #009ac7;
+    --success-color: #43a047;
+    --warning-color: #ffa600;
+    --error-color: #db4437;
+    --info-color: #039be5;
     --ha-card-border-radius: 12px;
     --ha-card-box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     /* Real HA typography tokens (px-based, scaled by

@@ -57,9 +57,15 @@ This repository is available in the default HACS catalog.
 
 ### Manual
 
-1. Download `ha-dockhand-cards.js` from the [latest release](https://github.com/raetha/ha-dockhand-cards/releases)
-2. Copy it into `<HA config>/www/`
-3. Add it as a Lovelace resource: `/local/ha-dockhand-cards.js`, type: **JavaScript Module**
+1. Download `ha-dockhand-cards.js` and `ha-dockhand-cards-editor.js` from the
+   [latest release](https://github.com/raetha/ha-dockhand-cards/releases)
+2. Copy both into the same folder, e.g. `<HA config>/www/`. The editor file is loaded automatically
+   from beside the card file when you open a card's visual editor, so it doesn't need its own
+   resource.
+3. Add the card file as a Lovelace resource: `/local/ha-dockhand-cards.js`, type: **JavaScript
+   Module**
+4. When updating, replace both files, and change the resource URL to add or bump a version, e.g.
+   `/local/ha-dockhand-cards.js?v=1.4.0`, so browsers load the new files instead of cached ones.
 
 ---
 
@@ -137,13 +143,17 @@ device_id: <stack device>
 name: null # optional — Composed or Custom, same as every other card's Name field
 icon: null # optional — custom header icon (e.g. mdi:layers-triple); defaults to mdi:layers
 show_settings_link: true # link to open this stack in Dockhand
+show_controls: true # row of start/stop/restart buttons under the status — off hides it
 visible_sections: [status, containers, git_sync] # which sections show, independent of each other
 ```
 
 Status (running/partial/stopped/created), container count, pending-update badge, and — for
 git-tracked stacks only — sync status, last sync time, and a sync-error banner. Each member
 container gets its own pill, linking to that container's own status entity when it can be
-resolved.
+resolved. A row of buttons under the status starts, stops or restarts the stack, plus its Redeploy
+(internal stacks) or Deploy / Sync from Git (git stacks) button, with a confirmation before
+anything but start; a stack containing a system container (Dockhand itself, a Hawser agent)
+doesn't get them.
 
 <p>
   <img src="docs/images/stack.png" alt="Stack card, dark theme" width="420">
@@ -158,15 +168,17 @@ device_id: <container device>
 name: null # optional — Composed or Custom, same as every other card's Name field
 icon: null # optional — custom header icon (e.g. mdi:server); defaults to mdi:docker
 show_settings_link: true # link to open this container in Dockhand
-show_controls: true # show start/stop/restart buttons in the header — off hides them
+show_controls: true # row of start/stop/restart buttons under the status — off hides it
 visible_sections: [state, metrics, io] # which sections show, independent of each other
 ```
 
 State, health (when the container has a healthcheck), CPU/memory usage, and network/block I/O.
 CPU/memory and per-container I/O sensors are opt-in in ha-dockhand and off by default — the card
 shows a hint rather than a blank chart when they're not enabled. CPU, memory, and the health icon
-each open their own entity's more-info dialog — not just the container's overall state.  
-The header also carries start/stop/restart controls when the container isn't a system container (ha-dockhand doesn't create those entities for Dockhand itself or a Hawser agent, so the controls simply don't appear there). Toggle them off with show_controls: false if you'd rather keep the header clean.
+each open their own entity's more-info dialog — not just the container's overall state. A row of
+buttons under the state starts, stops or restarts the container, with a confirmation before stop
+or restart. System containers (Dockhand itself, a Hawser agent) don't get them; `show_controls:
+false` hides the row everywhere.
 
 <p>
   <img src="docs/images/container.png" alt="Container card, dark theme" width="420">
@@ -400,11 +412,21 @@ example enables environments, stacks, and containers together across two environ
 
 ## Translations
 
-Editor field labels and section headings are translated into the same 10 languages as
-ha-dockhand (German, Spanish, French, Italian, Norwegian Bokmål, Dutch, Polish, Portuguese,
-Swedish, Simplified Chinese), looked up from `hass.language`. Live-card-rendered text is mostly
-still English (e.g. "Images", "CPU", "Events") — the one exception is each card's "Open in
-Dockhand"-style link tooltip, translated the same way.
+Every card and editor is translated into the same 10 languages as ha-dockhand (German, Spanish,
+French, Italian, Norwegian Bokmål, Dutch, Polish, Portuguese, Swedish, Simplified Chinese),
+following your Home Assistant language. Numbers and relative times ("5 min ago") follow your
+language and number format too. Entity names (such as a stack's "Sync from Git" button) come from
+ha-dockhand, so they're translated where it translates them.
+
+## Accessibility
+
+Interactive parts of every card work from the keyboard (Tab to focus, Enter or Space to activate)
+and have names a screen reader can announce; this is checked automatically for every card and
+editor. Status colors come from your Home Assistant theme, unchanged, so the cards match the rest
+of your dashboard — if you need higher-contrast colors, a theme that provides them applies here
+too. Text in the cards' own colors (environment labels) meets WCAG AA contrast in HA's default
+light and dark themes. If something isn't usable with your setup, please open an
+issue.
 
 ## Contributing
 

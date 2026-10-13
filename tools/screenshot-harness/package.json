@@ -1,10 +1,11 @@
 {
   "name": "ha-dockhand-cards-screenshot-harness",
   "private": true,
-  "description": "Renders the real card bundle against fictional mock data for documentation screenshots. Not part of the card build itself.",
+  "description": "Renders the real card bundle against fictional mock data for documentation screenshots and automated accessibility checks. Not part of the card build itself.",
   "type": "module",
   "dependencies": {
     "@fontsource/roboto": "^5.3.0",
-    "@mdi/js": "^7.4.47"
+    "@mdi/js": "^7.4.47",
+    "axe-core": "^4.14.0"
   }
 }

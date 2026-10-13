@@ -10,6 +10,8 @@ import { resolveCardName, migrateTitleToName, multiEnvCardNameFallback } from '.
 import { resolveEnvironmentEntities, findPrimaryEntityByDomain } from '../common/entity-resolver';
 import { getTotalPendingUpdates } from '../common/updates-visibility';
 import { renderIcon, onKeydownActivate } from '../common/icon';
+import { t } from '../common/i18n-card';
+import { UPDATE_PENDING_VERSION } from '../common/const';
 import type { DockhandUpdatesCardConfig } from './types';
 import { cardStyles } from './styles';
 
@@ -147,7 +149,7 @@ export class DockhandUpdatesCard extends LitElement implements LovelaceCard {
       return html`<ha-card>
         <div class="card-message error">
           <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-          <span>No environment selected. Edit this card to pick one or more.</span>
+          <span>${t(this._hass, 'msg_no_environment_selected')}</span>
         </div>
       </ha-card>`;
     }
@@ -166,7 +168,7 @@ export class DockhandUpdatesCard extends LitElement implements LovelaceCard {
 
     const bulkButtonIds = groups.map((g) => g.bulkButtonEntityId).filter((id): id is string => Boolean(id));
     const representativeEntityId = getRepresentativeEntityId(this._hass, envDeviceIds[0]);
-    const name = resolveCardName(this._hass, representativeEntityId, this._config.name, multiEnvCardNameFallback(envDevices, 'Updates'));
+    const name = resolveCardName(this._hass, representativeEntityId, this._config.name, multiEnvCardNameFallback(envDevices, t(this._hass, 'name_updates')));
     // Based on how many environments are actually included, not the
     // card's old scope field — a single included environment (whether
     // that's because only one exists, or because everything else was
@@ -202,7 +204,7 @@ export class DockhandUpdatesCard extends LitElement implements LovelaceCard {
                   baseClass: 'header-icon',
                   busy: this._checking,
                   icon: 'mdi:refresh',
-                  title: this._checking ? 'Checking…' : 'Check for updates',
+                  title: this._checking ? t(this._hass, 'checking') : t(this._hass, 'check_updates'),
                   ...(this._checking ? { disabled: true } : { onClick: () => this._triggerCheckUpdates(checkUpdatesEntityIds) })
                 })
               : nothing}
@@ -211,8 +213,8 @@ export class DockhandUpdatesCard extends LitElement implements LovelaceCard {
                   baseClass: 'header-icon filled',
                   busy: this._triggering,
                   icon: 'mdi:arrow-up-circle',
-                  text: 'Update all',
-                  title: this._triggering ? 'Updating…' : 'Update all',
+                  text: t(this._hass, 'update_all'),
+                  title: this._triggering ? t(this._hass, 'updating') : t(this._hass, 'update_all'),
                   ...(this._triggering ? { disabled: true } : { onClick: () => this._triggerBulkUpdate(bulkButtonIds) })
                 })
               : nothing}
@@ -222,7 +224,7 @@ export class DockhandUpdatesCard extends LitElement implements LovelaceCard {
           ${groups.every((g) => g.updates.length === 0)
             ? html`<div class="card-message">
                 <ha-icon icon="mdi:check-circle-outline"></ha-icon>
-                <span>Everything up to date.</span>
+                <span>${t(this._hass, 'msg_everything_up_to_date')}</span>
               </div>`
             : flatUpdates
               ? html`<div class="list">${flatUpdates.map((u) => this._renderUpdateRow(u))}</div>`
@@ -245,7 +247,11 @@ export class DockhandUpdatesCard extends LitElement implements LovelaceCard {
           <ha-icon icon="mdi:arrow-up-circle"></ha-icon>
           <span class="item-name">${u.name}</span>
         </div>
-        ${u.installedVersion && u.latestVersion ? html`<span class="row-right">${u.installedVersion} → ${u.latestVersion}</span>` : nothing}
+        ${u.latestVersion === UPDATE_PENDING_VERSION
+          ? html`<span class="row-right">${t(this._hass, 'update_available')}</span>`
+          : u.installedVersion && u.latestVersion
+            ? html`<span class="row-right">${u.installedVersion} → ${u.latestVersion}</span>`
+            : nothing}
       </div>
     `;
   }
@@ -255,6 +261,8 @@ export class DockhandUpdatesCard extends LitElement implements LovelaceCard {
     this._triggering = true;
     try {
       await this._hass.callService('button', 'press', {}, { entity_id: entityIds });
+    } catch {
+      // hass.callService has already shown HA's error toast for this.
     } finally {
       this._triggering = false;
     }
@@ -275,6 +283,8 @@ export class DockhandUpdatesCard extends LitElement implements LovelaceCard {
       // fixed the underlying design rather than the card working around
       // it.)
       await this._hass.callService('button', 'press', {}, { entity_id: entityIds });
+    } catch {
+      // hass.callService has already shown HA's error toast for this.
     } finally {
       this._checking = false;
     }

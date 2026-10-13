@@ -145,7 +145,14 @@ export const sortableRowStyles = css`
      * convention to match. Their row list genuinely has no between-row
      * lines by default; ours shouldn't either. */
   }
-  .order-row.hidden {
+  /* A hidden entry still needs a readable name (it's the one you'd
+   * un-hide), so it's dimmed with the secondary text color — 4.5:1 or
+   * better in HA's themes — rather than opacity, which took it to about
+   * 3:1. Only the drag handle fades. */
+  .order-row.hidden .order-name {
+    color: var(--secondary-text-color);
+  }
+  .order-row.hidden .order-handle {
     opacity: 0.5;
   }
   .order-handle {

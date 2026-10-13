@@ -4,6 +4,42 @@ import { sharedStyles } from '../common/shared-styles';
 export const cardStyles = css`
   ${sharedStyles}
 
+  /*
+   * This card's own colors, as custom properties so a theme or card_mod can
+   * change any of them (docs/STYLING.md). Event icons use HA's status colors
+   * in Dockhand's grouping (start green, stop red, change amber, health
+   * blue). The rest have no HA equivalent and default to Dockhand's colors.
+   */
+  :host {
+    --dockhand-connection-socket-color: #22d3ee;
+    --dockhand-connection-direct-color: #3b82f6;
+    --dockhand-connection-hawser-standard-color: #a855f7;
+    --dockhand-connection-hawser-edge-color: #22c55e;
+    --dockhand-event-start-color: var(--dockhand-status-ok-color);
+    --dockhand-event-stop-color: var(--dockhand-status-error-color);
+    --dockhand-event-change-color: var(--dockhand-status-warn-color);
+    --dockhand-event-health-color: var(--dockhand-status-info-color);
+    --dockhand-event-other-color: var(--secondary-text-color);
+    --dockhand-chart-cpu-color: #10b981;
+    --dockhand-chart-memory-color: #3b82f6;
+    --dockhand-disk-images-color: #0ea5e9;
+    --dockhand-disk-containers-color: #10b981;
+    --dockhand-disk-volumes-color: #f59e0b;
+    --dockhand-disk-build-cache-color: #8b5cf6;
+    --dockhand-label-1-color: #ef4444;
+    --dockhand-label-2-color: #f97316;
+    --dockhand-label-3-color: #eab308;
+    --dockhand-label-4-color: #22c55e;
+    --dockhand-label-5-color: #14b8a6;
+    --dockhand-label-6-color: #3b82f6;
+    --dockhand-label-7-color: #8b5cf6;
+    --dockhand-label-8-color: #ec4899;
+    --dockhand-label-9-color: #06b6d4;
+    --dockhand-label-10-color: #84cc16;
+    --dockhand-label-11-color: #6366f1;
+    --dockhand-label-12-color: #d946ef;
+  }
+
   /* The environment name is a line-height:1 span — .clickable's 6px
    * border-radius is disproportionately large at that height (~40% of
    * half-height) and looks pill-shaped instead of a subtle rounded rect.
@@ -19,13 +55,13 @@ export const cardStyles = css`
     border-radius: 4px;
   }
   .breakdown .running {
-    color: var(--dockhand-status-ok-color);
+    color: var(--dockhand-status-ok-text-color);
   }
   .breakdown .partial {
-    color: var(--dockhand-status-warn-color);
+    color: var(--dockhand-status-warn-text-color);
   }
   .breakdown .stopped {
-    color: var(--dockhand-status-error-color);
+    color: var(--dockhand-status-error-text-color);
   }
   .chart-value {
     font-weight: 500;

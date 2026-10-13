@@ -28,9 +28,9 @@ export interface DockhandContainerCardConfig extends LovelaceCardConfig {
    * see common/card-name.ts. */
   name?: string | EntityNameItem | EntityNameItem[];
   show_settings_link?: boolean;
-  /** Show start/stop/restart controls in the header. Default true. */
+  /** Show the row of start/stop/restart buttons under the status. Default true. */
   show_controls?: boolean;
   /** Custom header icon (e.g. "mdi:server"). Falls back to
-  * DEFAULT_CONTAINERS_ICON when unset. */
+   * DEFAULT_CONTAINER_ICON when unset. */
   icon?: string;
 }

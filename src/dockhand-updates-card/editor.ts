@@ -20,6 +20,10 @@ export class DockhandUpdatesCardEditor extends LitElement implements LovelaceCar
   @state() private _config?: DockhandUpdatesCardConfig;
   @state() private _hass?: HomeAssistant;
   @property({ type: Boolean }) cardIsEmbedded = false;
+  /** See DockhandEnvironmentCardEditor's identical property: set only by
+   * Overview's global-defaults view, where one name shared by every
+   * environment's card has no meaning. */
+  @property({ type: Boolean }) hideTitle = false;
 
   set hass(hass: HomeAssistant) {
     this._hass = hass;
@@ -56,7 +60,10 @@ export class DockhandUpdatesCardEditor extends LitElement implements LovelaceCar
         flatten: true,
         icon: 'mdi:text-short',
         title: t(this._hass, 'content_section_heading'),
-        schema: [cardNameFieldSchema(this._representativeEntityId(), [{ type: 'device' }]), { name: 'hide_when_no_updates', default: false, selector: { boolean: {} } }]
+        schema: [
+          ...(this.hideTitle ? [] : [cardNameFieldSchema(this._representativeEntityId(), [{ type: 'device' }])]),
+          { name: 'hide_when_no_updates', default: false, selector: { boolean: {} } }
+        ]
       }
     ];
   }
@@ -102,6 +109,7 @@ export class DockhandUpdatesCardEditor extends LitElement implements LovelaceCar
         icon: 'mdi:web',
         order: this._config.environments_order,
         excluded: effectiveExcludeDeviceIds(devices, this._config.exclude_device_ids, this._config.device_id, this._config.scope),
+        hidden: this.cardIsEmbedded,
         showExcludeToggle: true,
         allowReorder: true,
         onMoved: (order) => this._updateConfig({ environments_order: order, scope: undefined, device_id: undefined }),
@@ -178,7 +186,12 @@ export class DockhandUpdatesCardEditor extends LitElement implements LovelaceCar
    * since either can change which environments the visibility condition
    * should cover. */
   private _applyValueChange(next: DockhandUpdatesCardConfig): void {
-    if (next.hide_when_no_updates && this._hass) {
+    // Embedded in Overview, the card is rendered inside Overview's own
+    // shadow DOM where HA's visibility never applies; Overview hides it
+    // from hide_when_no_updates itself.
+    if (this.cardIsEmbedded) {
+      delete next.visibility;
+    } else if (next.hide_when_no_updates && this._hass) {
       const deviceIds = resolveIncludedOrderedWithLegacy(getEnvironmentDevices(this._hass), next.environments_order, next.exclude_device_ids, next.device_id, next.scope).map((d) => d.deviceId);
       const condition = buildUpdatesVisibilityCondition(this._hass, deviceIds);
       if (condition) {

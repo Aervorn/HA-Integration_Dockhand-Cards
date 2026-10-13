@@ -130,11 +130,11 @@ export interface TopContainerEntry {
  * small set of ha-dockhand entities that deliberately have no
  * translation_key (has_entity_name=True with the entity name equal to the
  * device name: the container/stack running switch, the container `update`
- * entity, the git stack deploy button). ha-dockhand's own ARCHITECTURE.md
- * documents these as the canonical control for that device, one per
- * domain — so domain + device_id is a safe, unambiguous lookup key for
- * exactly these entities, unlike for anything with a translation_key
- * (where translation_key is the right key, not domain).
+ * entity). The device can also carry other
+ * entities of the same domain that do have a translation_key (a container's
+ * `container_auto_update` switch, once enabled), so the lookup requires the
+ * missing translation_key as well as the domain — otherwise whichever
+ * switch the registry happened to list first would win.
  */
 export function findPrimaryEntityByDomain(
   hass: HomeAssistant,
@@ -142,7 +142,7 @@ export function findPrimaryEntityByDomain(
   domain: string
 ): { entityId: string; state: HassEntity } | null {
   const entry = Object.values(hass.entities ?? {}).find(
-    (e) => e.device_id === deviceId && e.platform === DOCKHAND_DOMAIN && e.entity_id.startsWith(`${domain}.`) && !e.disabled_by
+    (e) => e.device_id === deviceId && e.platform === DOCKHAND_DOMAIN && e.entity_id.startsWith(`${domain}.`) && !e.translation_key && !e.disabled_by
   );
   if (!entry) return null;
   const state = hass.states[entry.entity_id];

@@ -8,7 +8,9 @@ import { getEnvironmentDevices, getContainerDevicesForEnvironment, getRepresenta
 import { resolveCardName, migrateTitleToName, multiEnvCardNameFallback } from '../common/card-name';
 import { resolveIncludedOrderedWithLegacy, groupRowsByEnvironment, resolveEffectiveGroupBy } from '../common/environment-scope';
 import { resolveContainerEntities, findPrimaryEntityByDomain, type ResolutionResult } from '../common/entity-resolver';
-import { getDockhandBaseUrl } from '../common/format';
+import { formatPercent, getDockhandBaseUrl, numericState } from '../common/format';
+import { t } from '../common/i18n-card';
+import { stateLabel } from '../common/state-label';
 import { renderSettingsLink, renderIcon, onKeydownActivate } from '../common/icon';
 import type { ContainerTranslationKey } from '../common/const';
 import { HEALTH_ICON, HEALTH_STATUS_CLASS } from '../common/const';
@@ -67,15 +69,16 @@ export function sortContainerRows(rows: ContainerRow[], sortBy: ContainersSortBy
   return sorted;
 }
 
-function statusKeyAndLabel(row: ContainerRow): { key: string; label: string } {
-  return { key: row.status, label: row.status.charAt(0).toUpperCase() + row.status.slice(1) };
+function capitalize(status: string): string {
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 export function groupContainerRows(
   rows: ContainerRow[],
   groupBy: ContainersGroupBy | undefined,
   sortBy: ContainersSortBy,
-  envDevices: EnvironmentDeviceOption[] = []
+  envDevices: EnvironmentDeviceOption[] = [],
+  statusLabel: (status: string) => string = capitalize
 ): { label: string | null; rows: ContainerRow[] }[] {
   if (!groupBy || groupBy === 'none') return [{ label: null, rows: sortContainerRows(rows, sortBy) }];
 
@@ -88,8 +91,8 @@ export function groupContainerRows(
 
   const buckets = new Map<string, { label: string; rows: ContainerRow[] }>();
   for (const row of rows) {
-    const { key, label } = statusKeyAndLabel(row);
-    if (!buckets.has(key)) buckets.set(key, { label, rows: [] });
+    const key = row.status;
+    if (!buckets.has(key)) buckets.set(key, { label: statusLabel(key), rows: [] });
     buckets.get(key)!.rows.push(row);
   }
 
@@ -190,15 +193,17 @@ export class DockhandContainersCard extends LitElement implements LovelaceCard {
       return html`<ha-card>
         <div class="card-message error">
           <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
-          <span>No environment selected. Edit this card to pick one or more.</span>
+          <span>${t(this._hass, 'msg_no_environment_selected')}</span>
         </div>
       </ha-card>`;
     }
 
     const representativeEntityId = getRepresentativeEntityId(this._hass, envDevices[0].deviceId);
-    const name = resolveCardName(this._hass, representativeEntityId, this._config.name, multiEnvCardNameFallback(envDevices, 'Containers'));
+    const name = resolveCardName(this._hass, representativeEntityId, this._config.name, multiEnvCardNameFallback(envDevices, t(this._hass, 'name_containers')));
     const base = this._resolveBaseUrl(envDevices);
-    const groups = groupContainerRows(rows, resolveEffectiveGroupBy(this._config.group_by, envDevices, 'environment'), this._config.sort_by ?? 'name', envDevices);
+    const groups = groupContainerRows(rows, resolveEffectiveGroupBy(this._config.group_by, envDevices, 'environment'), this._config.sort_by ?? 'name', envDevices, (status) =>
+      stateLabel(this._hass, 'container_state', status)
+    );
 
     return html`
       <ha-card>
@@ -238,17 +243,17 @@ export class DockhandContainersCard extends LitElement implements LovelaceCard {
     const stateIcon = STATE_ICON[st] ?? { icon: 'mdi:help-circle', cls: 'neutral' as const };
     const health = found.health?.state.state;
     const healthId = found.health?.entityId;
-    const cpu = found.cpuPercent ? Number(found.cpuPercent.state.state) : undefined;
+    const cpu = numericState(found.cpuPercent?.state.state);
     const cpuId = found.cpuPercent?.entityId;
-    const mem = found.memoryPercent ? Number(found.memoryPercent.state.state) : undefined;
+    const mem = numericState(found.memoryPercent?.state.state);
     const memId = found.memoryPercent?.entityId;
     const id = found.state!.entityId;
     const visible = new Set(this._config?.visible_badges ?? DEFAULT_CONTAINERS_BADGES);
 
     return html`
-      <div class="row clickable" tabindex="0" role="button" @click=${() => this._moreInfo(id)} @keydown=${onKeydownActivate(() => this._moreInfo(id))}>
-        <div class="row-left">
-          <ha-icon class="row-icon ${stateIcon.cls}" icon=${stateIcon.icon}></ha-icon>
+      <div class="row clickable" @click=${() => this._moreInfo(id)}>
+        <div class="row-left row-target" tabindex="0" role="button" @keydown=${onKeydownActivate(() => this._moreInfo(id))}>
+          <ha-icon class="row-icon ${stateIcon.cls}" icon=${stateIcon.icon} title=${stateLabel(this._hass, 'container_state', st, found.state!.state)}></ha-icon>
           <span class="item-name">${row.name}</span>
           ${visible.has('environment') ? html`<span class="label-pill">${row.environment}</span>` : nothing}
         </div>
@@ -258,7 +263,7 @@ export class DockhandContainersCard extends LitElement implements LovelaceCard {
                 baseClass: 'row-icon',
                 icon: 'mdi:arrow-up-circle',
                 colorClass: 'warn',
-                title: 'Update available',
+                title: t(this._hass, 'update_available'),
                 onClick: () => this._moreInfo(row.updateEntityId)
               })
             : nothing}
@@ -267,7 +272,7 @@ export class DockhandContainersCard extends LitElement implements LovelaceCard {
                 baseClass: 'row-icon',
                 icon: HEALTH_ICON[health] ?? 'mdi:heart-outline',
                 colorClass: HEALTH_STATUS_CLASS[health] as 'ok' | 'warn' | 'error' | undefined,
-                title: health,
+                title: stateLabel(this._hass, 'health', health, found.health?.state),
                 onClick: () => this._moreInfo(healthId)
               })
             : nothing}
@@ -275,7 +280,7 @@ export class DockhandContainersCard extends LitElement implements LovelaceCard {
             ? renderIcon({
                 baseClass: 'row-icon',
                 icon: 'mdi:cpu-64-bit',
-                text: `${cpu.toFixed(0)}%`,
+                text: formatPercent(cpu, this._hass, 0),
                 onClick: () => this._moreInfo(cpuId)
               })
             : nothing}
@@ -283,7 +288,7 @@ export class DockhandContainersCard extends LitElement implements LovelaceCard {
             ? renderIcon({
                 baseClass: 'row-icon',
                 icon: 'mdi:memory',
-                text: `${mem.toFixed(0)}%`,
+                text: formatPercent(mem, this._hass, 0),
                 onClick: () => this._moreInfo(memId)
               })
             : nothing}

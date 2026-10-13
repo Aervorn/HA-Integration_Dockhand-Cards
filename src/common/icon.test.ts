@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { render, nothing, type TemplateResult } from 'lit';
 import { renderSettingsLink, renderIcon, onKeydownActivate } from './icon';
