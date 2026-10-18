@@ -135,6 +135,7 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
             </div>
             <div class="header-right">
               <span class="label-pill">${stateLabel(this._hass, 'stack_type', s.status?.state.attributes.type || device.model || t(this._hass, 'name_stack'))}</span>
+              ${controls ? renderDeviceControls(this, this._hass, controls, name) : nothing}
               ${renderSettingsLink({
                 hass: this._hass,
                 show: this._config?.show_settings_link,
@@ -144,7 +145,7 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
             </div>
           </div>
           <div class="divider"></div>
-          ${this._renderBody(s, isGit, device, controls ? renderDeviceControls(this, this._hass, controls, name) : nothing)}
+          ${this._renderBody(s, isGit, device, nothing)}
         </div>
       </ha-card>
     `;
