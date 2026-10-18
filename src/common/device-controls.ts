@@ -90,37 +90,34 @@ function performAction(host: HTMLElement, action: string, entityId: string, conf
   });
 }
 
-/** A row of labeled buttons for `controls`, placed in the card body under
- * the status rather than in the header, which has no room for them beside
- * a long device name. Actions fire from `host` (the card). */
+/** Compact icon-only controls for `controls`, rendered inline in the card
+ * header's right side next to the update / settings icons. Labels are kept
+ * as tooltips. Actions fire from `host` (the card). */
 export function renderDeviceControls(host: HTMLElement, hass: HomeAssistant | undefined, controls: DeviceControls, name: string): TemplateResult {
   const { entityId, isOn } = controls.running;
   const restartEntityId = controls.restartEntityId;
-  const button = (icon: string, label: string, onClick: () => void) => renderIcon({ baseClass: 'control-button', icon, text: label, title: label, onClick });
+  const button = (icon: string, label: string, onClick: () => void) => renderIcon({ baseClass: 'header-icon', icon, title: label, onClick });
   return html`
-    <div class="control-row">
-      ${isOn
-        ? button('mdi:stop', t(hass, 'control_stop'), () => performAction(host, 'switch.turn_off', entityId, t(hass, 'control_stop_confirm', { name })))
-        : button('mdi:play', t(hass, 'control_start'), () => performAction(host, 'switch.turn_on', entityId))}
-      ${restartEntityId
-        ? button('mdi:restart', t(hass, 'control_restart'), () =>
-            performAction(host, 'button.press', restartEntityId, t(hass, 'control_restart_confirm', { name }))
-          )
-        : nothing}
-      ${controls.deploy ? renderDeploy(host, hass, controls.deploy, name) : nothing}
-    </div>
+    ${controls.deploy ? renderDeploy(host, hass, controls.deploy, name) : nothing}
+    ${restartEntityId
+      ? button('mdi:restart', t(hass, 'control_restart'), () =>
+          performAction(host, 'button.press', restartEntityId, t(hass, 'control_restart_confirm', { name }))
+        )
+      : nothing}
+    ${isOn
+      ? button('mdi:stop', t(hass, 'control_stop'), () => performAction(host, 'switch.turn_off', entityId, t(hass, 'control_stop_confirm', { name })))
+      : button('mdi:play', t(hass, 'control_start'), () => performAction(host, 'switch.turn_on', entityId))}
   `;
 }
 
-/** Uses the entity's own icon (rocket or refresh for the git button) and
- * name, so the card stays in step with whatever the integration shows. */
+/** Uses the entity's own icon (rocket or refresh for the git button), with
+ * its name as tooltip, so the card stays in step with the integration. */
 function renderDeploy(host: HTMLElement, hass: HomeAssistant | undefined, deploy: NonNullable<DeviceControls['deploy']>, name: string): TemplateResult {
   const action = deploy.label ?? t(hass, 'control_deploy');
   return renderIcon({
-    baseClass: 'control-button',
+    baseClass: 'header-icon',
     hass,
     stateObj: deploy.state,
-    text: action,
     title: action,
     onClick: () => performAction(host, 'button.press', deploy.entityId, t(hass, 'control_deploy_confirm', { name, action }))
   });
