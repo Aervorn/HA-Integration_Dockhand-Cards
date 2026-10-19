@@ -22,7 +22,10 @@ export interface DeviceRegistryEntry {
   model: string | null;
   manufacturer: string | null;
   identifiers: [string, string][];
-  config_entries: string[];
+  /** HA 2026.8+. */
+  config_entry_id?: string | null;
+  /** Deprecated by HA 2026.8; scheduled for removal from the registry API in 2027.8. */
+  config_entries?: string[];
   configuration_url: string | null;
   hw_version: string | null;
   via_device_id: string | null;

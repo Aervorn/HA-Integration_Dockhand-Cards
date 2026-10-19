@@ -476,8 +476,24 @@ export const sharedStyles = css`
     background: var(--divider-color);
     flex-shrink: 0;
   }
-  .label-pill ha-icon {
+  /* .row ha-icon (16px, further down) would otherwise win for a pill
+   * inside a row and make it taller than the row's own icon. */
+  .label-pill ha-icon,
+  .row .label-pill ha-icon {
     --mdc-icon-size: 12px;
+  }
+  /* Same color as the update icon it sits beside — both are update badges —
+   * on a tint of it, the way the Vulnerability card's severity boxes are
+   * (and Dockhand's own badge: amber at 10%, 20% on hover). */
+  .version-tag-pill {
+    color: var(--dockhand-status-warn-text-color);
+    background: rgb(from var(--dockhand-status-warn-color) r g b / 0.1);
+  }
+  .version-tag-pill ha-icon {
+    color: var(--dockhand-status-warn-color);
+  }
+  .version-tag-pill.clickable:hover:not(:has(.clickable:hover)) {
+    background: rgb(from var(--dockhand-status-warn-color) r g b / 0.2);
   }
   /* The shared shape for any message that takes over a card (or a
    * card's own body) in place of its normal content — a required

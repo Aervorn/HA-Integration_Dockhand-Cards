@@ -30,6 +30,7 @@ credentials of their own and never contact Dockhand directly.
   | Schedules grouped by environment | 1.9.0 |
   | "Hide when no updates" counting a system container's own update | 1.8.2 |
   | Update counts including new version tags | 1.10.2 |
+  | Newer version tags, moved pinned digests and held updates | 1.11.0 |
 
 ---
 
@@ -136,11 +137,16 @@ name: null # optional — Composed or Custom, same as every other card's Name fi
 icon: null # optional — custom header icon (e.g. mdi:layers-triple); defaults to mdi:layers
 show_settings_link: true # link to open this stack in Dockhand
 show_controls: true # row of start/stop/restart buttons under the status — off hides it
-visible_sections: [status, containers, git_sync] # which sections show, independent of each other
+visible_sections: [status, metrics, io, containers, git_sync] # which sections show, independent of each other
 ```
 
-The stack's status, its containers (each one a pill that opens that container), pending updates,
-and — for git stacks — sync status, last sync time and any sync error.
+The stack's status, CPU/memory and network/disk I/O totals, its containers (each one a pill that
+opens that container), pending updates, and — for git stacks — sync status, last sync time and any
+sync error. The totals are Dockhand's own (the same numbers its Stacks page shows), from
+ha-dockhand 1.11.0's stack stats sensors — they need Dockhand 1.0.52 or later and ha-dockhand's
+**Enable container and stack stats** option; without them the card simply leaves those sections out. Like
+Dockhand, memory shows as usage over limit, where the limit is the largest single container limit
+(usually the host's memory).
 
 A row of buttons under the status starts, stops or restarts the stack, alongside its **Redeploy**
 (internal stacks) or **Deploy / Sync from Git** (git stacks) button. Everything except Start asks
@@ -165,7 +171,7 @@ visible_sections: [state, metrics, io] # which sections show, independent of eac
 ```
 
 The container's state, health (when it has a healthcheck), CPU/memory and network/disk I/O. CPU,
-memory and I/O need ha-dockhand's **Enable container stats** option; without it the card simply
+memory and I/O need ha-dockhand's **Enable container and stack stats** option; without it the card simply
 leaves them out, and its editor tells you what to enable.
 
 A row of buttons under the state starts, stops or restarts the container, asking for confirmation
@@ -223,6 +229,13 @@ Every container in one environment, several, or all of them, one compact row eac
 pending updates and CPU/memory (when container stats are enabled). Works like the Stacks card
 above, including **Row details** and older `device_id` configs.
 
+With ha-dockhand 1.11.0 or later, a newer version tag Dockhand has found shows as a tag pill, like
+Dockhand's own containers list: next to the update icon when there's also an update to install, or
+on its own when there isn't. A container pinned to a digest whose tag has moved on gets an orange
+pin in the update icon's place, and one whose update Dockhand is holding until the new image
+reaches its minimum image age gets a grey clock; hover either for the details. All of these are
+part of the **updates** row detail.
+
 <p>
   <img src="docs/images/containers-list.png" alt="Containers card, dark theme" width="420">
   <img src="docs/images/containers-list-light.png" alt="Containers card, light theme" width="420">
@@ -243,6 +256,17 @@ Every pending container update across the environments you choose, with **Check 
 and **Update all** buttons in the header. Update all presses each environment's own ha-dockhand
 Update all button, so it behaves exactly like Dockhand's: system containers are left out. Click a
 row to open that container's update dialog and install just that one.
+
+A newer version tag (one you'd move to by changing the container's image tag rather than installing
+from Home Assistant) gets a grey tag icon in place of the update icon when it's the row's only
+update. When it's waiting behind an update that can be installed now, it shows as a tag pill
+alongside that update. Two more kinds of row, both as Dockhand's own containers list shows them: a
+container pinned to a digest (`image:tag@sha256:…`) whose tag has moved on gets an orange pin and
+"Pinned to a digest" (the update is changing the pin, so there's nothing to install), and an update
+Dockhand is holding until the new image reaches its minimum image age gets a grey clock and the
+hours left, so you can see it coming ("At next check" once the wait is over, until Dockhand's next
+update check offers it). Both count in the header, and keep the card showing when **Hide when no
+updates** is on. Needs ha-dockhand 1.11.0 or later.
 
 Updates are grouped by environment by default; `group_by: none` shows one combined list. Older
 configs using `scope`/`device_id` keep working as before.

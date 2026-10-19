@@ -185,11 +185,14 @@ function buildEnvironment(addDevice, addEntity, opts) {
   addEntity(entity(`button.${slug}_check_updates`, envDeviceId, 'check_updates', 'unknown'));
 
   // ── Containers ─────────────────────────────────────────────────────
-  // Update entities deliberately don't use real semantic versions (e.g.
-  // "1.4.2" -> "1.5.0") — Dockhand can't offer that for arbitrary images.
-  // What you actually see is either a generic "Update available" (no
-  // digest details) or a short image-digest hash pair, matching the two
-  // real modes this card can show.
+  // An installable update is either a generic "Update available" (no
+  // digest details) or a short image-digest hash pair — Dockhand can't
+  // offer "1.4.2" -> "1.5.0" for the tag a container is pinned to. A
+  // newer version tag (`newer`) is separate: it needs the pinned tag
+  // changed, and can appear alongside an installable update or alone
+  // (update: 'tag'). update: 'pinned' is a digest-pinned image whose tag
+  // moved on, update: 'held' an update waiting out the minimum image age
+  // (both on, with nothing to install).
   const containers = [
     {
       name: 'web',
@@ -205,10 +208,19 @@ function buildEnvironment(addDevice, addEntity, opts) {
       blkRead: 15728640,
       blkWrite: 4194304
     },
-    { name: 'postgres', state: 'running', health: 'healthy', cpu: 6.1, mem: 12.4, memLimit: 1024, update: 'none', image: 'postgres:16' },
-    { name: 'redis', state: 'running', health: 'healthy', cpu: 1.1, mem: 3.2, memLimit: 256, update: 'none', image: 'redis:7.2' },
-    { name: 'traefik', state: 'running', health: null, cpu: 0.4, mem: 1.8, memLimit: 256, update: 'generic', image: 'traefik:v3.1' },
-    { name: 'worker', state: 'running', health: 'unhealthy', cpu: 0.2, mem: 2.6, memLimit: 512, update: 'none', image: 'ghcr.io/nebula/worker:latest' },
+    { name: 'postgres', state: 'running', health: 'healthy', cpu: 6.1, mem: 12.4, memLimit: 1024, update: 'tag', newer: '17.6', newerBump: 'major', newerCount: 7, image: 'postgres:16' },
+    { name: 'redis', state: 'running', health: 'healthy', cpu: 1.1, mem: 3.2, memLimit: 256, update: 'held', heldHours: 9, image: 'redis:7.2' },
+    { name: 'traefik', state: 'running', health: null, cpu: 0.4, mem: 1.8, memLimit: 256, update: 'generic', newer: 'v3.5', newerBump: 'minor', newerCount: 4, image: 'traefik:v3.1' },
+    {
+      name: 'worker',
+      state: 'running',
+      health: 'unhealthy',
+      cpu: 0.2,
+      mem: 2.6,
+      memLimit: 512,
+      update: 'pinned',
+      image: 'ghcr.io/nebula/worker:latest@sha256:5c1d9e0f7a2b'
+    },
     { name: 'backup', state: 'exited', health: null, cpu: 0, mem: 0, memLimit: 256, update: 'none', image: 'restic/restic:0.17', netRx: 0, netTx: 0, blkRead: 0, blkWrite: 0 }
   ];
 
@@ -218,9 +230,13 @@ function buildEnvironment(addDevice, addEntity, opts) {
   // in this mock data, so pending_system_updates is always 0 here; a
   // future test of that specific case should add one rather than
   // hand-editing these numbers directly.
-  const pendingUpdateCount = containers.filter((c) => c.update !== 'none').length;
+  const onKinds = ['hash', 'generic', 'tag', 'pinned', 'held'];
+  const pendingUpdateCount = containers.filter((c) => onKinds.includes(c.update)).length;
+  const pendingVersionUpdateCount = containers.filter((c) => c.update === 'tag').length;
+  const pendingPinnedDigestCount = containers.filter((c) => c.update === 'pinned').length;
+  const heldCount = containers.filter((c) => c.update === 'held').length;
   const systemContainers = containers.filter((c) => c.systemContainer);
-  const pendingSystemUpdateCount = systemContainers.filter((c) => c.update !== 'none').length;
+  const pendingSystemUpdateCount = systemContainers.filter((c) => onKinds.includes(c.update)).length;
   addEntity(
     entity(`sensor.${slug}_containers`, envDeviceId, 'containers', online ? '14' : '0', {
       running: online ? 12 : 0,
@@ -228,9 +244,11 @@ function buildEnvironment(addDevice, addEntity, opts) {
       paused: 0,
       restarting: 0,
       unhealthy: online ? 1 : 0,
-      pending_updates: online ? pendingUpdateCount - pendingSystemUpdateCount : 0,
+      pending_updates: online ? pendingUpdateCount - pendingSystemUpdateCount - pendingVersionUpdateCount - pendingPinnedDigestCount - heldCount : 0,
       pending_system_updates: online ? pendingSystemUpdateCount : 0,
-      pending_version_updates: 0,
+      pending_version_updates: online ? pendingVersionUpdateCount : 0,
+      pending_pinned_digest_updates: online ? pendingPinnedDigestCount : 0,
+      pending_held_updates: online ? heldCount : 0,
       pending_updates_total: online ? pendingUpdateCount : 0
     })
   );
@@ -276,7 +294,8 @@ function buildEnvironment(addDevice, addEntity, opts) {
         entity(`update.${slug}_${c.name}_update`, devId, null, 'on', {
           name: c.name,
           installed_version: 'a3f29e1',
-          latest_version: 'b82d4f0'
+          latest_version: 'b82d4f0',
+          ...(c.newer ? { newer_version: c.newer, newer_version_bump: c.newerBump, newer_versions_count: c.newerCount } : {})
         })
       );
     } else if (c.update === 'generic') {
@@ -284,7 +303,39 @@ function buildEnvironment(addDevice, addEntity, opts) {
         entity(`update.${slug}_${c.name}_update`, devId, null, 'on', {
           name: c.name,
           installed_version: 'latest',
-          latest_version: 'update-pending'
+          latest_version: 'update-pending',
+          ...(c.newer ? { newer_version: c.newer, newer_version_bump: c.newerBump, newer_versions_count: c.newerCount } : {})
+        })
+      );
+    } else if (c.update === 'tag') {
+      // A newer version tag is the only update: ha-dockhand shows it as
+      // latest_version too, and withholds Install.
+      addEntity(
+        entity(`update.${slug}_${c.name}_update`, devId, null, 'on', {
+          name: c.name,
+          installed_version: c.image.split(':')[1],
+          latest_version: c.newer,
+          newer_version: c.newer,
+          newer_version_bump: c.newerBump,
+          newer_versions_count: c.newerCount
+        })
+      );
+    } else if (c.update === 'pinned') {
+      addEntity(
+        entity(`update.${slug}_${c.name}_update`, devId, null, 'on', {
+          name: c.name,
+          installed_version: 'latest',
+          latest_version: 'update-pending',
+          pinned_digest_moved: true
+        })
+      );
+    } else if (c.update === 'held') {
+      addEntity(
+        entity(`update.${slug}_${c.name}_update`, devId, null, 'on', {
+          name: c.name,
+          installed_version: c.image.split(':')[1],
+          latest_version: 'update-pending',
+          update_held_hours: c.heldHours
         })
       );
     } else {
@@ -323,6 +374,34 @@ function buildEnvironment(addDevice, addEntity, opts) {
         container_names: s.containerNames
       })
     );
+    // Stack totals as Dockhand's /api/stack-stats reports them (via
+    // ha-dockhand): summed over running containers, except the memory limit,
+    // which is the largest single one, and no memory percentage.
+    const running = containers.filter((c) => s.containerNames.includes(c.name) && c.state === 'running');
+    if (running.length > 0) {
+      const sum = (f) => running.reduce((total, c) => total + (f(c) ?? 0), 0);
+      const usedMiB = sum((c) => c.memLimit * (c.mem / 100));
+      const limitMiB = Math.max(...running.map((c) => c.memLimit));
+      const mibOf = (bytes) => String(bytes / 1024 ** 2);
+      const totals = [
+        ['cpu_percent', sum((c) => c.cpu).toFixed(1), '%'],
+        ['memory_usage', String(usedMiB), 'MiB'],
+        ['memory_limit', String(limitMiB), 'MiB'],
+        ['network_rx', mibOf(sum((c) => c.netRx)), 'MiB'],
+        ['network_tx', mibOf(sum((c) => c.netTx)), 'MiB'],
+        ['block_read', mibOf(sum((c) => c.blkRead)), 'MiB'],
+        ['block_write', mibOf(sum((c) => c.blkWrite)), 'MiB']
+      ];
+      for (const [key, value, unit] of totals) {
+        addEntity(
+          entity(`sensor.${slug}_${s.name}_${key}`, devId, `stack_${key}`, value, {
+            unit_of_measurement: unit,
+            running_containers: running.length,
+            ...(key === 'cpu_percent' ? { icon: 'mdi:cpu-64-bit' } : key === 'memory_usage' ? { icon: 'mdi:memory' } : {})
+          })
+        );
+      }
+    }
     if (s.updateCount) {
       addEntity(entity(`binary_sensor.${slug}_${s.name}_updates_available`, devId, 'stack_updates_available', 'on', { update_count: s.updateCount }));
     } else {

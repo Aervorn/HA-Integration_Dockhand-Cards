@@ -24,7 +24,23 @@ gotchas (not "this got fixed", but "here's a pattern worth remembering") belong 
   The header currently shows a fixed generic icon instead — documented at the render site as a
   known gap, not an attempted match.
 
+## Containers / Stacks cards
+
+- **Dockhand container and stack tags.** Dockhand 1.0.49+ has user-defined tags (name, colour,
+  icon) on containers and stacks. Once ha-dockhand exposes them (its backlog has the API details),
+  show them as pills on Containers/Stacks rows and the Container/Stack cards, and use them for the
+  filtering/grouping planned for 2.0.0. Tag colours are user-chosen, so they'd follow the same
+  inline-colour approach as the environment label pills. Raetha: worth doing, not urgent
+  (2026-10-14).
+
 ## Cross-card
+
+- **Test coverage of the card renderers.** ha-dockhand's tests cover every line; here the shared
+  modules in `src/common` are at about 85% but the cards' own `card.ts` render code mostly isn't
+  exercised (about 36% overall), and the editors not at all. DOM tests like
+  `dockhand-updates-card/card.dom.test.ts` per card, then a coverage gate in `npm run verify`
+  (it needs `@vitest/coverage-v8` added as a dev dependency), would catch render regressions the
+  screenshot harness only shows when someone looks. A sizeable piece of work; not started.
 
 - **Real-browser / screen-reader verification** of the keyboard interaction pattern (`tabindex`
   + `role="button"` + `@keydown` on non-`<button>` elements) — implemented per WAI-ARIA guidance

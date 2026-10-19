@@ -7,14 +7,15 @@ import type { HomeAssistant, LovelaceGridOptions } from '../common/ha-types';
 import { getAllContainerDevices, getRepresentativeEntityId } from '../common/device-utils';
 import { resolveCardName, migrateTitleToName } from '../common/card-name';
 import { resolveContainerEntities, findPrimaryEntityByDomain, type ResolutionResult } from '../common/entity-resolver';
+import { renderResourceIo, renderResourceMetrics } from '../common/resource-sections';
 import { joinWithDividers, mergeSections } from '../common/section-join';
 import type { ContainerTranslationKey } from '../common/const';
-import { barColorClass, bytesState, formatBytes, formatPercent, getDockhandBaseUrl, memoryParts, numericState } from '../common/format';
-import { renderFitParts } from '../common/fit-parts';
+import { getDockhandBaseUrl } from '../common/format';
 import { PairGridController } from '../common/pair-grid';
 import { t } from '../common/i18n-card';
+import { updateKindIcon, updateStatus } from '../common/update-kind';
 import { stateLabel } from '../common/state-label';
-import { renderSettingsLink, renderIcon, onKeydownActivate } from '../common/icon';
+import { renderSettingsLink, renderIcon } from '../common/icon';
 import { CONTAINER_STATE_CLASS, HEALTH_ICON, HEALTH_STATUS_CLASS, DEFAULT_CONTAINER_ICON, UPDATE_PENDING_VERSION } from '../common/const';
 import { renderDeviceControls, resolveDeviceControls } from '../common/device-controls';
 import { DEFAULT_CONTAINER_SECTIONS, type DockhandContainerCardConfig } from './types';
@@ -124,7 +125,7 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
     const image = s.state?.state.attributes.image as string | undefined;
     const update = findPrimaryEntityByDomain(this._hass, this._config.device_id, 'update');
     const controls = resolveDeviceControls(this._hass, this._config.device_id, this._config.show_controls);
-    const updatePending = update?.state.state === 'on';
+    const status = updateStatus(update?.state);
 
     return html`
       <ha-card>
@@ -138,15 +139,19 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
               </div>
             </div>
             <div class="header-right">
-              ${updatePending
+              ${status
                 ? renderIcon({
                     baseClass: 'header-icon',
-                    icon: 'mdi:package-up',
-                    colorClass: 'warn',
+                    // A moved pin or a held update isn't something Install
+                    // can apply: their own icons, as on the other cards.
+                    icon: status.kind === 'pinned' || status.kind === 'held' ? updateKindIcon(this._hass, status).icon : 'mdi:package-up',
+                    colorClass: status.kind === 'held' ? 'neutral' : 'warn',
                     title:
-                      update?.state.attributes.latest_version && update.state.attributes.latest_version !== UPDATE_PENDING_VERSION
-                        ? t(this._hass, 'update_available_versions', { from: update.state.attributes.installed_version ?? '?', to: update.state.attributes.latest_version })
-                      : t(this._hass, 'update_available'),
+                      status.kind === 'pinned' || status.kind === 'held'
+                        ? updateKindIcon(this._hass, status).title
+                        : update?.state.attributes.latest_version && update.state.attributes.latest_version !== UPDATE_PENDING_VERSION
+                          ? t(this._hass, 'update_available_versions', { from: update.state.attributes.installed_version ?? '?', to: update.state.attributes.latest_version })
+                          : t(this._hass, 'update_available'),
                     onClick: () => this._moreInfo(update?.entityId)
                   })
                 : nothing}
@@ -199,90 +204,10 @@ export class DockhandContainerCard extends LitElement implements LovelaceCard {
           </div>
         `
       : nothing;
-    const metricsContent = visible.has('metrics') ? this._renderMetrics(s) : nothing;
-    const ioContent = visible.has('io') ? this._renderIo(s) : nothing;
+    const moreInfo = (entityId: string | undefined) => this._moreInfo(entityId);
+    const metricsContent = visible.has('metrics') ? renderResourceMetrics(this._hass, s, moreInfo) : nothing;
+    const ioContent = visible.has('io') ? renderResourceIo(this._hass, s, moreInfo) : nothing;
 
     return joinWithDividers([mergeSections(stateContent, controlsContent), mergeSections(metricsContent, ioContent)]);
   }
-
-  private _renderMetrics(s: ResolutionResult<ContainerTranslationKey>['found']): TemplateResult | typeof nothing {
-    const cpu = numericState(s.cpuPercent?.state.state);
-    const mem = numericState(s.memoryPercent?.state.state);
-    if (cpu === undefined && mem === undefined) return nothing;
-    const memUsed = bytesState(s.memoryUsage?.state);
-    const memLimit = bytesState(s.memoryLimit?.state);
-
-    return html`
-      <div class="section">
-        ${cpu !== undefined
-          ? html`
-              <div class="stacked-pair">
-                <div
-                  class="row clickable"
-                  tabindex="0"
-                  role="button"
-                  @click=${() => this._moreInfo(s.cpuPercent?.entityId)}
-                  @keydown=${onKeydownActivate(() => this._moreInfo(s.cpuPercent?.entityId))}
-                >
-                  ${renderIcon({ baseClass: 'row-icon', hass: this._hass, stateObj: s.cpuPercent!.state, text: t(this._hass, 'label_cpu'), static: true })}
-                  <span class="row-right">${formatPercent(cpu, this._hass)}</span>
-                </div>
-                <div class="bar-track"><div class="bar-fill ${barColorClass(cpu)}" style="width:${Math.min(cpu, 100)}%"></div></div>
-              </div>
-            `
-          : nothing}
-        ${mem !== undefined
-          ? html`
-              <div class="stacked-pair">
-                <div
-                  class="row clickable"
-                  tabindex="0"
-                  role="button"
-                  @click=${() => this._moreInfo(s.memoryPercent?.entityId)}
-                  @keydown=${onKeydownActivate(() => this._moreInfo(s.memoryPercent?.entityId))}
-                >
-                  ${renderIcon({ baseClass: 'row-icon', hass: this._hass, stateObj: s.memoryPercent!.state, text: t(this._hass, 'label_memory'), static: true })}
-                  ${renderFitParts(memoryParts(mem, memUsed, memLimit, this._hass))}
-                </div>
-                <div class="bar-track"><div class="bar-fill ${barColorClass(mem)}" style="width:${Math.min(mem, 100)}%"></div></div>
-              </div>
-            `
-          : nothing}
-      </div>
-    `;
-  }
-
-  private _renderIo(s: ResolutionResult<ContainerTranslationKey>['found']): TemplateResult | typeof nothing {
-    const items: { icon: string; label: string; entry: ResolutionResult<ContainerTranslationKey>['found'][ContainerTranslationKey] }[] = [
-      { icon: 'mdi:download-network', label: t(this._hass, 'label_network_rx'), entry: s.networkRx },
-      { icon: 'mdi:upload-network', label: t(this._hass, 'label_network_tx'), entry: s.networkTx },
-      { icon: 'mdi:database-arrow-down', label: t(this._hass, 'label_block_read'), entry: s.blockRead },
-      { icon: 'mdi:database-arrow-up', label: t(this._hass, 'label_block_write'), entry: s.blockWrite }
-    ];
-    const available = items.flatMap((i) => {
-      const bytes = bytesState(i.entry?.state);
-      return i.entry && bytes !== undefined ? [{ ...i, bytes }] : [];
-    });
-    if (available.length === 0) return nothing;
-
-    return html`
-      <div class="grid-2">
-        ${available.map(
-          (item) => html`
-            <div
-              class="row clickable"
-              tabindex="0"
-              role="button"
-              @click=${() => this._moreInfo(item.entry?.entityId)}
-              @keydown=${onKeydownActivate(() => this._moreInfo(item.entry?.entityId))}
-            >
-              ${renderIcon({ baseClass: 'row-icon', icon: item.icon, text: item.label, static: true })}
-              <span class="row-right">${formatBytes(item.bytes, this._hass)}</span>
-            </div>
-          `
-        )}
-      </div>
-    `;
-  }
-
 }

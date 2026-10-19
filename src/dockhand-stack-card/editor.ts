@@ -10,10 +10,13 @@ import { resolveStackEntities, getStackDropdownOptions } from '../common/entity-
 import { t } from '../common/i18n-editor';
 import { editorFormStyles } from '../common/editor-styles';
 import { STACK_FRIENDLY_LABEL, type StackTranslationKey } from '../common/const';
+import { STACK_RESOURCE_KEYS } from '../common/resource-sections';
 import { DEFAULT_STACK_SECTIONS, STACK_SECTION_ORDER, type DockhandStackCardConfig } from './types';
 
 const SECTION_LABEL_KEY = {
   status: 'section_status',
+  metrics: 'section_metrics',
+  io: 'section_io',
   containers: 'section_stack_containers',
   git_sync: 'section_git_sync'
 } as const;
@@ -142,7 +145,8 @@ export class DockhandStackCardEditor extends LitElement implements LovelaceCardE
    * entities, or missing ones from the always-applicable set
    * (status/containersInStack/updatesAvailable) — a "not_found" git_*
    * entity on a non-git stack isn't something enabling anything would
-   * fix, so it's not a useful warning. */
+   * fix, so it's not a useful warning, and the same goes for the stats
+   * entities while ha-dockhand's container stats option is off. */
   private _warning(): Record<string, string> {
     if (!this._hass || !this._config?.device_id) return {};
     const alwaysApplicable: StackTranslationKey[] = ['status', 'containersInStack', 'updatesAvailable'];
@@ -152,7 +156,8 @@ export class DockhandStackCardEditor extends LitElement implements LovelaceCardE
       'updatesAvailable',
       'gitSyncStatus',
       'gitLastSync',
-      'gitSyncError'
+      'gitSyncError',
+      ...STACK_RESOURCE_KEYS
     ]);
     const relevant = unavailable.filter((u) => alwaysApplicable.includes(u.key) || u.reason === 'disabled');
     if (relevant.length === 0) return {};

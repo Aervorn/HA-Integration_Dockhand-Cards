@@ -29,11 +29,11 @@ dockhand-specific is needed:
 |---|---|
 | `--primary-color` | Accent: the header badge, control buttons, "Update all", focus rings, editor links (through `--dockhand-accent-color`) |
 | `--success-color` | Running, healthy, synced, all-clear; start events (through `--dockhand-status-ok-color`) |
-| `--warning-color` | Paused, partial, update available; medium/high severity; change events (through `--dockhand-status-warn-color`) |
+| `--warning-color` | Paused, partial, update available (icon, newer version tag pill, and the pin for a moved digest on a pinned image); medium/high severity; change events (through `--dockhand-status-warn-color`) |
 | `--error-color` | Stopped, unhealthy, restarting, sync error; critical/high severity; stop events (through `--dockhand-status-error-color`) |
 | `--info-color` | In progress, e.g. git "syncing"; low severity; health events (through `--dockhand-status-info-color`) |
 | `--primary-text-color` | Normal text |
-| `--secondary-text-color` | De-emphasized text, neutral states, other events, hidden entries in editor lists |
+| `--secondary-text-color` | De-emphasized text, neutral states, other events, hidden entries in editor lists, update markers with nothing to do yet (a newer tag alone, a held update) |
 | `--text-primary-color` | Text on an accent-colored button ("Update all") |
 | `--divider-color` | Dividers and empty bar tracks |
 | `--card-background-color` | Chart tooltips and the gaps between disk-usage segments |
@@ -44,7 +44,7 @@ dockhand-specific is needed:
 |---|---|---|
 | `--dockhand-accent-color` | `var(--primary-color)` | Accent color of these cards only |
 | `--dockhand-status-ok-color` | `var(--success-color, #43a047)` | Running/healthy/synced/all-clear states |
-| `--dockhand-status-warn-color` | `var(--warning-color, #ffa600)` | Paused/partial/pending-update states |
+| `--dockhand-status-warn-color` | `var(--warning-color, #ffa600)` | Paused/partial/pending-update states, including the newer version tag pill (its icon, and a 10% tint behind it — 20% on hover) |
 | `--dockhand-status-error-color` | `var(--error-color, #db4437)` | Stopped/unhealthy/restarting/sync-error states |
 | `--dockhand-status-info-color` | `var(--info-color, #039be5)` | In-progress states (currently just git "syncing") |
 | `--dockhand-severity-critical-color` | `var(--dockhand-status-error-color)` | Vulnerability card — critical findings |
@@ -150,7 +150,8 @@ useful ones:
 - `.item-name` — a row's own primary name text, truncating with an ellipsis the same way a header's
   own name does
 - `.label-pill` — a small rounded label (a stack/container type, a custom environment label) —
-  shared by every card that has one, see `docs/ARCHITECTURE.md` §10
+  shared by every card that has one, see `docs/ARCHITECTURE.md` §10. `.version-tag-pill` is the
+  newer version tag one on Updates and Containers rows (additive, so `.label-pill` still matches it); its text uses `--dockhand-status-warn-text-color`
 - `.header-icon` — every header icon on every card, clickable or genuinely static, either side of
   the header: an update chip, a feature toggle, the Dockhand link, and Environment's own
   connection-type icon (merged in from a former separate `.conn-icon`) — all one shared shape and

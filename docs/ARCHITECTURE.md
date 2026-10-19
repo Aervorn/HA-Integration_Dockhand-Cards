@@ -928,6 +928,23 @@ curve) than continuing to derive a constant-pixel gap analytically within the ar
   manually — confirmed byte-for-byte identical across all 8 cards that had one before this helper
   replaced every one of them; no card defines its own copy anymore.
 
+- **`renderResourceMetrics` / `renderResourceIo`** (`common/resource-sections.ts`) — the CPU/memory
+  bars and network/disk grid, shared by the Container card and the Stack card (Dockhand's own stack
+  totals). Both take the same eight resource keys; a stack has no memory percentage
+  (`STACK_RESOURCE_KEYS`), so its memory bar is usage over limit and its text shows no percentage,
+  like Dockhand's Stacks page.
+- **`newerVersionTag` / `isVersionTagOnly` / `renderVersionTagPill` / `versionTagTooltip`**
+  (`common/version-tag.ts`) — everything about ha-dockhand's newer-version-tag attributes, used by
+  the Updates, Containers and Stack cards. The tooltip mirrors Dockhand's own badge
+  (`VersionUpdateBadge.svelte`), minus its "click for release notes" line.
+- **`updateStatus` / `updateKindIcon` / `renderUpdateKindIcon`** (`common/update-kind.ts`) — what
+  a container's update entity has to show: `installable`, `tag` (newer version tag only), `pinned`
+  (a moved digest on a digest-pinned image) or `held` (waiting out Dockhand's minimum image age,
+  `update_held_hours`; 0 once the wait is over). All four come from an update entity that's on; the
+  last three have nothing for Install to do. Every card that marks a
+  container's update goes through it, so the icons, colors and tooltips stay the same everywhere:
+  orange arrow, grey tag, orange pin and grey clock, matching Dockhand's containers list.
+
 ## 18. CSS classes reference
 
 A fast lookup for every class actually in use across the repo, built directly against the current
@@ -1051,8 +1068,10 @@ happens (ha-dockhand-cards#1 — reported as "all containers/stacks from both se
 both").
 
 The fix, and the rule to keep following: every one of these lookups must also confirm
-`sameConfigEntry()` — i.e. that the candidate device's `config_entries` overlaps the reference
-environment device's `config_entries`. `config_entries` is populated by HA itself for every
+`sameConfigEntry()` — i.e. that the candidate device belongs to the same config entry as the
+reference environment device (HA 2026.8+'s single `config_entry_id` when both have it, otherwise
+an overlap of the older `config_entries` lists, which HA plans to drop from the device registry
+API in 2027.8). Either is populated by HA itself for every
 device regardless of identifier format (including pre-1.9.0 bare, entry_id-less identifiers), so
 it's the actual source of truth for "same physical Dockhand instance," not something this repo
 needs to reconstruct by parsing an entry_id prefix back out of an identifier string. Every

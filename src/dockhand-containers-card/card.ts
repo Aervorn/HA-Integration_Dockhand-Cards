@@ -14,6 +14,8 @@ import { stateLabel } from '../common/state-label';
 import { renderSettingsLink, renderIcon, onKeydownActivate } from '../common/icon';
 import type { ContainerTranslationKey } from '../common/const';
 import { HEALTH_ICON, HEALTH_STATUS_CLASS } from '../common/const';
+import { renderVersionTagPill, type NewerVersionTag } from '../common/version-tag';
+import { updateKindIcon, updateStatus, type UpdateStatus } from '../common/update-kind';
 import { DEFAULT_CONTAINERS_BADGES, type DockhandContainersCardConfig, type ContainersGroupBy, type ContainersSortBy } from './types';
 import { cardStyles } from './styles';
 
@@ -49,6 +51,10 @@ interface ContainerRow {
   environmentDeviceId: string;
   found: ResolutionResult<ContainerTranslationKey>['found'];
   updateEntityId: string | null;
+  /** See newerVersionTag() in common/version-tag.ts. */
+  newerVersion?: NewerVersionTag;
+  /** See updateStatus() in common/update-kind.ts. */
+  updateStatus?: UpdateStatus;
 }
 
 function byNameThenEnvironment(a: ContainerRow, b: ContainerRow): number {
@@ -157,6 +163,20 @@ export class DockhandContainersCard extends LitElement implements LovelaceCard {
     return null;
   }
 
+  /** A newer tag on its own is just the pill; anything else gets its icon
+   * here, in the update icon's place. */
+  private _renderUpdateIcon(row: ContainerRow): TemplateResult {
+    const { icon, title } = updateKindIcon(this._hass, row.updateStatus!);
+    const kind = row.updateStatus!.kind;
+    return renderIcon({
+      baseClass: 'row-icon',
+      icon,
+      colorClass: kind === 'held' ? 'neutral' : 'warn',
+      title,
+      onClick: () => this._moreInfo(row.updateEntityId)
+    });
+  }
+
   private _buildRows(): { rows: ContainerRow[]; envDevices: EnvironmentDeviceOption[] } {
     if (!this._hass || !this._config) return { rows: [], envDevices: [] };
 
@@ -166,17 +186,20 @@ export class DockhandContainersCard extends LitElement implements LovelaceCard {
       const envDevice = this._hass!.devices[env.deviceId];
       const containerDevices = envDevice ? getContainerDevicesForEnvironment(this._hass!, envDevice) : [];
       return containerDevices
-        .map((d) => {
+        .map((d): ContainerRow | null => {
           const { found } = resolveContainerEntities(this._hass!, d.id, ['state', 'health', 'cpuPercent', 'memoryPercent']);
           if (!found.state) return null;
           const update = findPrimaryEntityByDomain(this._hass!, d.id, 'update');
+          const status = updateStatus(update?.state);
           return {
             name: found.state.state.attributes.name || d.name_by_user || d.name || d.id,
             status: found.state.state.state,
             environment: env.name,
             environmentDeviceId: env.deviceId,
             found,
-            updateEntityId: update?.state.state === 'on' ? update.entityId : null
+            updateEntityId: status && update ? update.entityId : null,
+            newerVersion: status?.newerVersion,
+            updateStatus: status
           };
         })
         .filter((r): r is ContainerRow => r !== null);
@@ -258,15 +281,8 @@ export class DockhandContainersCard extends LitElement implements LovelaceCard {
           ${visible.has('environment') ? html`<span class="label-pill">${row.environment}</span>` : nothing}
         </div>
         <div class="row-right">
-          ${row.updateEntityId && visible.has('updates')
-            ? renderIcon({
-                baseClass: 'row-icon',
-                icon: 'mdi:arrow-up-circle',
-                colorClass: 'warn',
-                title: t(this._hass, 'update_available'),
-                onClick: () => this._moreInfo(row.updateEntityId)
-              })
-            : nothing}
+          ${row.newerVersion && visible.has('updates') ? renderVersionTagPill(this._hass, row.newerVersion, () => this._moreInfo(row.updateEntityId)) : nothing}
+          ${row.updateStatus && row.updateStatus.kind !== 'tag' && visible.has('updates') ? this._renderUpdateIcon(row) : nothing}
           ${(health === 'healthy' || health === 'unhealthy' || health === 'starting') && visible.has('health')
             ? renderIcon({
                 baseClass: 'row-icon',

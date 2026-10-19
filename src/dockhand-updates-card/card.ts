@@ -12,14 +12,28 @@ import { getTotalPendingUpdates } from '../common/updates-visibility';
 import { renderIcon, onKeydownActivate } from '../common/icon';
 import { t } from '../common/i18n-card';
 import { UPDATE_PENDING_VERSION } from '../common/const';
+import { renderVersionTagPill, type NewerVersionTag } from '../common/version-tag';
+import { heldShort, heldTooltip, pinnedDigestTooltip, updateStatus, type UpdateKind } from '../common/update-kind';
 import type { DockhandUpdatesCardConfig } from './types';
 import { cardStyles } from './styles';
+
+const UPDATE_ROW_ICONS: Record<UpdateKind, string> = {
+  installable: 'mdi:arrow-up-circle',
+  tag: 'mdi:tag-arrow-up-outline',
+  pinned: 'mdi:pin-outline',
+  held: 'mdi:clock-outline'
+};
 
 export interface PendingUpdate {
   entityId: string;
   name: string;
   installedVersion?: string;
   latestVersion?: string;
+  /** See newerVersionTag() in common/version-tag.ts. */
+  newerVersion?: NewerVersionTag;
+  /** See updateStatus() in common/update-kind.ts. */
+  kind: UpdateKind;
+  heldHours?: number;
 }
 
 interface EnvGroup {
@@ -118,12 +132,16 @@ export class DockhandUpdatesCard extends LitElement implements LovelaceCard {
 
       for (const c of containerDevices) {
         const entry = findPrimaryEntityByDomain(this._hass, c.id, 'update');
-        if (!entry || entry.state.state !== 'on') continue;
+        const status = updateStatus(entry?.state);
+        if (!entry || !status) continue;
         updates.push({
           entityId: entry.entityId,
           name: entry.state.attributes.name || c.name_by_user || c.name || c.id,
           installedVersion: entry.state.attributes.installed_version,
-          latestVersion: entry.state.attributes.latest_version
+          latestVersion: entry.state.attributes.latest_version,
+          newerVersion: status.newerVersion,
+          kind: status.kind,
+          heldHours: status.heldHours
         });
       }
       const sortedUpdates = sortPendingUpdates(updates);
@@ -241,17 +259,30 @@ export class DockhandUpdatesCard extends LitElement implements LovelaceCard {
   }
 
   private _renderUpdateRow(u: PendingUpdate): TemplateResult {
+    // The tag pill only alongside something else: when the tag is the only
+    // update, the version text already names it. The pill leads the right
+    // side so the version text after it stays aligned down the list.
+    const pill = u.newerVersion && u.kind !== 'tag' ? renderVersionTagPill(this._hass, u.newerVersion) : nothing;
+    let versionText: string | typeof nothing = nothing;
+    let title: string | undefined;
+    if (u.kind === 'held') {
+      versionText = heldShort(this._hass, u.heldHours ?? 0);
+      title = heldTooltip(this._hass, u.heldHours ?? 0);
+    } else if (u.kind === 'pinned') {
+      versionText = t(this._hass, 'pinned_digest_title');
+      title = pinnedDigestTooltip(this._hass);
+    } else if (u.latestVersion === UPDATE_PENDING_VERSION) {
+      versionText = t(this._hass, 'update_available');
+    } else if (u.installedVersion && u.latestVersion) {
+      versionText = `${u.installedVersion} → ${u.latestVersion}`;
+    }
     return html`
       <div class="row update-row clickable" tabindex="0" role="button" @click=${() => this._moreInfo(u.entityId)} @keydown=${onKeydownActivate(() => this._moreInfo(u.entityId))}>
         <div class="row-left">
-          <ha-icon icon="mdi:arrow-up-circle"></ha-icon>
+          <ha-icon class="update-icon ${u.kind}" icon=${UPDATE_ROW_ICONS[u.kind]} title=${title ?? nothing}></ha-icon>
           <span class="item-name">${u.name}</span>
         </div>
-        ${u.latestVersion === UPDATE_PENDING_VERSION
-          ? html`<span class="row-right">${t(this._hass, 'update_available')}</span>`
-          : u.installedVersion && u.latestVersion
-            ? html`<span class="row-right">${u.installedVersion} → ${u.latestVersion}</span>`
-            : nothing}
+        ${pill === nothing && versionText === nothing ? nothing : html`<span class="row-right" title=${title ?? nothing}>${pill}${versionText}</span>`}
       </div>
     `;
   }

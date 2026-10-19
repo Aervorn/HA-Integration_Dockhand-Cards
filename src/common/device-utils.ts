@@ -64,7 +64,14 @@ export function getEnvId(device: DeviceRegistryEntry): number | null {
  * something this repo has to reconstruct by parsing entry_id back out
  * of an identifier string. */
 function sameConfigEntry(device: DeviceRegistryEntry, envDevice: DeviceRegistryEntry): boolean {
-  return device.config_entries.some((id) => envDevice.config_entries.includes(id));
+  // HA 2026.8 gave each device a single `config_entry_id` and schedules the
+  // `config_entries` list for removal from the device registry API in 2027.8.
+  // The frontend still fills `config_entries` in today, so either may be the
+  // one present depending on HA version.
+  if (device.config_entry_id && envDevice.config_entry_id) return device.config_entry_id === envDevice.config_entry_id;
+  const entries = (d: DeviceRegistryEntry) => d.config_entries ?? (d.config_entry_id ? [d.config_entry_id] : []);
+  const envEntries = entries(envDevice);
+  return entries(device).some((id) => envEntries.includes(id));
 }
 
 // ha-dockhand container device identifier format:

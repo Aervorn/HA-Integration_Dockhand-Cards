@@ -5,11 +5,11 @@ import type { EntityNameItem } from '../common/ha-types';
  * also the fixed render order. Unlike Environment card's own
  * custom_sections, there's no separate mode to opt into first; every
  * section defaults to visible and can be hidden individually. */
-export type StackSection = 'status' | 'containers' | 'git_sync';
+export type StackSection = 'status' | 'metrics' | 'io' | 'containers' | 'git_sync';
 
-export const STACK_SECTION_ORDER: StackSection[] = ['status', 'containers', 'git_sync'];
+export const STACK_SECTION_ORDER: StackSection[] = ['status', 'metrics', 'io', 'containers', 'git_sync'];
 
-export const DEFAULT_STACK_SECTIONS: StackSection[] = ['status', 'containers', 'git_sync'];
+export const DEFAULT_STACK_SECTIONS: StackSection[] = ['status', 'metrics', 'io', 'containers', 'git_sync'];
 
 export interface DockhandStackCardConfig extends LovelaceCardConfig {
   type: 'custom:dockhand-stack-card';

@@ -79,7 +79,17 @@ export const STACK_TRANSLATION_KEYS = {
   updatesAvailable: 'stack_updates_available',
   gitSyncStatus: 'git_stack_sync_status',
   gitLastSync: 'git_stack_last_sync',
-  gitSyncError: 'git_stack_sync_error'
+  gitSyncError: 'git_stack_sync_error',
+  // Dockhand's own stack totals (ha-dockhand 1.11.0+ with Dockhand 1.0.52+,
+  // only while its "Enable container and stack stats" option is on). No memory
+  // percentage — Dockhand doesn't report one for a stack.
+  cpuPercent: 'stack_cpu_percent',
+  memoryUsage: 'stack_memory_usage',
+  memoryLimit: 'stack_memory_limit',
+  networkRx: 'stack_network_rx',
+  networkTx: 'stack_network_tx',
+  blockRead: 'stack_block_read',
+  blockWrite: 'stack_block_write'
 } as const;
 
 export type StackTranslationKey = keyof typeof STACK_TRANSLATION_KEYS;
@@ -203,7 +213,14 @@ export const STACK_FRIENDLY_LABEL: Partial<Record<StackTranslationKey, EditorTra
   updatesAvailable: 'entity_pending_updates_badge',
   gitSyncStatus: 'entity_git_sync_status',
   gitLastSync: 'entity_git_last_sync',
-  gitSyncError: 'entity_git_sync_error'
+  gitSyncError: 'entity_git_sync_error',
+  cpuPercent: 'entity_cpu_usage',
+  memoryUsage: 'entity_memory_usage',
+  memoryLimit: 'entity_memory_limit',
+  networkRx: 'entity_network_rx',
+  networkTx: 'entity_network_tx',
+  blockRead: 'entity_block_read',
+  blockWrite: 'entity_block_write'
 };
 
 // Dockhand's own container health values — shared between Container

@@ -22,6 +22,65 @@ the Releases page.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-19
+
+### Added
+
+- **Newer version tags on the Updates, Containers and Stack cards** (ha-dockhand#39). When
+  Dockhand finds a newer version tag for a container, one you move to by changing its image tag:
+  - **Updates card:** a row whose only update is a newer tag gets a grey tag icon instead of the
+    orange update icon, since there's nothing to install from Home Assistant. When the tag is
+    waiting behind an update that can be installed now, the row shows it in a tag pill.
+  - **Containers card:** the tag shows as a pill, like Dockhand's own containers list, just left of
+    the update icon, or on its own when there's nothing to install. Clicking it opens the update
+    dialog. It's part of the existing **updates** row detail.
+  - **Stack card:** a container pill whose only update is a newer tag gets the grey tag icon
+    instead of the orange update arrow, matching the Updates card.
+
+  The pill is in the update icon's color on a light tint of it, like the Vulnerability card's
+  severity boxes, and hovering it shows the same details Dockhand's own badge does: the version to
+  move to, how big a jump it is (major, minor or patch), and how many versions ahead it is.
+
+  Needs ha-dockhand 1.11.0 or later; with older versions these cards look the same as before.
+- **Digest-pinned images whose tag has moved on, and updates held by the minimum image age**, on
+  the Updates, Containers and Stack cards, shown the way Dockhand's own containers list shows
+  them:
+  - **Pinned to a digest:** a container pinned as `image:tag@sha256:…` whose tag now points to a
+    new image gets an orange pin. The update is changing the pin in its compose file, so there's
+    nothing to install; the Updates card row says "Pinned to a digest".
+  - **Held:** an update Dockhand is holding until the new image reaches its minimum image age gets
+    a grey clock, and the Updates card lists it with the hours left ("At next check" once the wait
+    is over). It counts in the Updates card's header, so the card shows something is coming.
+
+  Hover the pin or clock for the details. The Container card's header uses the same icons. Needs
+  ha-dockhand 1.11.0 (with Dockhand 1.0.54 for pinned digests, 1.0.52 for held updates); with
+  older versions nothing changes.
+- **Stack card: CPU, memory, network and disk I/O**, laid out the same way as on the Container
+  card, from Dockhand's own stack totals (ha-dockhand 1.11.0 with Dockhand 1.0.52 or later, and
+  ha-dockhand's **Enable container and stack stats** option on). Like Dockhand's Stacks page, memory shows as
+  usage over limit rather than a percentage. Two new `visible_sections` entries, `metrics` and `io`,
+  can be turned off in the editor and are on by default; without those sensors the card looks the
+  same as before. The editor also lists any of them you've disabled, like the Container card editor
+  does.
+
+### Fixed
+
+- **Schedules card:** Dockhand 1.0.52's new scheduled state reports are labelled "State report"
+  in every language instead of a raw "Env report".
+
+### Internal
+
+- Matching devices to their Dockhand instance now reads HA 2026.8's `config_entry_id` when it's
+  there, falling back to the older `config_entries` list, which HA plans to drop from its device
+  registry API in 2027.8. No visible change today.
+- The screenshot harness's mock data now includes newer version tags (alone, and alongside an
+  installable update), a digest-pinned image, a held update and stack stats, so the Updates,
+  Containers and Stack card screenshots show them.
+- One shared module (`src/common/update-kind.ts`) now decides how a container's update is shown —
+  installable, newer tag only, pinned digest or held — for every card that marks one.
+- The Container card's CPU/memory and network/disk sections moved to a shared module the Stack card
+  uses too. No visible change to the Container card.
+
 ## [1.4.0] - 2026-10-13
 
 ### Added
@@ -537,7 +596,8 @@ so a user's own icon customization is reflected automatically.
   from `hass.language`. Custom mode's section-checkbox labels specifically are English-only for
   now — see `docs/BACKLOG.md`.
 
-[Unreleased]: https://github.com/raetha/ha-dockhand-cards/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/raetha/ha-dockhand-cards/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/raetha/ha-dockhand-cards/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/raetha/ha-dockhand-cards/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/raetha/ha-dockhand-cards/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/raetha/ha-dockhand-cards/compare/v1.3.0...v1.3.1

@@ -12,6 +12,8 @@ import { getDockhandBaseUrl, formatRelativeTime } from '../common/format';
 import { t } from '../common/i18n-card';
 import { stateLabel } from '../common/state-label';
 import { renderSettingsLink, renderIcon, onKeydownActivate } from '../common/icon';
+import { STACK_RESOURCE_KEYS, renderResourceIo, renderResourceMetrics } from '../common/resource-sections';
+import { renderUpdateKindIcon, updateStatus, type UpdateStatus } from '../common/update-kind';
 import { joinWithDividers, mergeSections } from '../common/section-join';
 import { renderDeviceControls, resolveDeviceControls } from '../common/device-controls';
 import { DEFAULT_STACK_SECTIONS, type DockhandStackCardConfig } from './types';
@@ -30,6 +32,12 @@ const SYNC_ICON: Record<string, string> = {
   pending: 'mdi:clock-outline',
   error: 'mdi:alert-circle'
 };
+
+interface ContainerPillInfo {
+  entityId: string;
+  /** See updateStatus() in common/update-kind.ts. */
+  updateStatus?: UpdateStatus;
+}
 
 export class DockhandStackCard extends LitElement implements LovelaceCard {
   static styles = cardStyles;
@@ -108,7 +116,8 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
       'containersInStack',
       'gitSyncStatus',
       'gitLastSync',
-      'gitSyncError'
+      'gitSyncError',
+      ...STACK_RESOURCE_KEYS
     ]);
     const s = resolution.found;
     const representativeEntityId = getRepresentativeEntityId(this._hass, this._config.device_id);
@@ -157,7 +166,7 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
     const status = s.status.state.state;
     const containerCount = s.status.state.attributes.container_count ?? s.containersInStack?.state.state;
     const containerNames = s.status.state.attributes.container_names as string[] | undefined;
-    const containerInfo = containerNames && containerNames.length > 0 ? this._containerInfo(stackDevice) : new Map<string, { entityId: string; updateEntityId?: string }>();
+    const containerInfo = containerNames && containerNames.length > 0 ? this._containerInfo(stackDevice) : new Map<string, ContainerPillInfo>();
     const visible = new Set(this._config?.visible_sections ?? DEFAULT_STACK_SECTIONS);
 
     const statusContent = visible.has('status')
@@ -185,9 +194,8 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
               <div class="label-row">
                 ${containerNames.map((name) => {
                   const info = containerInfo.get(name);
-                  const updateIcon = info?.updateEntityId
-                    ? html`<ha-icon icon="mdi:arrow-up-circle" style="color:var(--dockhand-status-warn-color)" title=${t(this._hass, 'update_available')}></ha-icon>`
-                    : nothing;
+                  // Same icons as the Updates card's rows.
+                  const updateIcon = info?.updateStatus ? renderUpdateKindIcon(this._hass, info.updateStatus) : nothing;
                   return info
                     ? html`<span
                         class="label-pill clickable"
@@ -204,8 +212,11 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
           `
         : nothing;
     const gitSyncContent = isGit && visible.has('git_sync') ? this._renderGitSection(s) : nothing;
+    const moreInfo = (entityId: string | undefined) => this._moreInfo(entityId);
+    const metricsContent = visible.has('metrics') ? renderResourceMetrics(this._hass, s, moreInfo) : nothing;
+    const ioContent = visible.has('io') ? renderResourceIo(this._hass, s, moreInfo) : nothing;
 
-    return joinWithDividers([mergeSections(statusContent, controlsContent), containersContent, gitSyncContent]);
+    return joinWithDividers([mergeSections(statusContent, controlsContent), mergeSections(metricsContent, ioContent), containersContent, gitSyncContent]);
   }
 
   /** Maps each container's raw Docker name (what `container_names` lists)
@@ -220,8 +231,8 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
    * state entity isn't available, are simply left as plain
    * (non-clickable) pills — same graceful-degradation approach used
    * throughout this card for missing/disabled entities elsewhere. */
-  private _containerInfo(stackDevice: DeviceRegistryEntry): Map<string, { entityId: string; updateEntityId?: string }> {
-    const map = new Map<string, { entityId: string; updateEntityId?: string }>();
+  private _containerInfo(stackDevice: DeviceRegistryEntry): Map<string, ContainerPillInfo> {
+    const map = new Map<string, ContainerPillInfo>();
     if (!this._hass) return map;
     const envId = getEnvIdForStackDevice(stackDevice);
     if (envId === null) return map;
@@ -235,7 +246,7 @@ export class DockhandStackCard extends LitElement implements LovelaceCard {
         const update = findPrimaryEntityByDomain(this._hass, containerDevice.id, 'update');
         map.set(rawName, {
           entityId: found.state.entityId,
-          updateEntityId: update?.state.state === 'on' ? update.entityId : undefined
+          updateStatus: updateStatus(update?.state)
         });
       }
     }

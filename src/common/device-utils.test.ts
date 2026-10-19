@@ -95,6 +95,24 @@ describe('getContainerDevicesForEnvironment', () => {
 
     expect(getContainerDevicesForEnvironment(hass, env).map((d) => d.id)).toEqual(['c1']);
   });
+
+  it('scopes by config_entry_id (HA 2026.8+), with or without the deprecated config_entries list', () => {
+    const env1 = makeDevice({ id: 'env1', identifiers: [['dockhand', 'entryA_env_1']], config_entries: undefined, config_entry_id: 'entryA' });
+    const c1 = makeDevice({ id: 'c1', identifiers: [['dockhand', 'entryA_container_1_web']], config_entries: undefined, config_entry_id: 'entryA' });
+    const c2 = makeDevice({ id: 'c2', identifiers: [['dockhand', 'entryB_container_1_web']], config_entries: ['entryB'], config_entry_id: 'entryB' });
+    const hass = makeHass({ devices: [env1, c1, c2] });
+
+    expect(getContainerDevicesForEnvironment(hass, env1).map((d) => d.id)).toEqual(['c1']);
+  });
+
+  it('ignores a device that carries no config entry fields at all', () => {
+    const env = makeDevice({ id: 'env1', identifiers: [['dockhand', 'entryA_env_1']], config_entries: ['entryA'] });
+    const child = makeDevice({ id: 'child', identifiers: [['other', 'x']], config_entries: undefined });
+    const c1 = makeDevice({ id: 'c1', identifiers: [['dockhand', 'entryA_container_1_web']], config_entries: ['entryA'] });
+    const hass = makeHass({ devices: [env, child, c1] });
+
+    expect(getContainerDevicesForEnvironment(hass, env).map((d) => d.id)).toEqual(['c1']);
+  });
 });
 
 describe('getStackDevicesForEnvironment', () => {
