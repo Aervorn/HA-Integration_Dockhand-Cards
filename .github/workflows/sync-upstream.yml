@@ -2,7 +2,7 @@
 #
 # Every night it replays this fork's own commits on top of upstream's main.
 # When upstream has published a new vX.Y.Z tag, it also builds and publishes
-# a matching release here (vX.Y.Z-yj) so HACS offers the update.
+# a matching release here (vX.Y.Z-fork) so HACS offers the update.
 # If the rebase conflicts or the tests fail, nothing is pushed and an issue
 # is opened in this fork instead.
 #
@@ -29,7 +29,7 @@ concurrency:
 
 env:
   UPSTREAM: https://github.com/raetha/ha-dockhand-cards.git
-  SUFFIX: yj
+  SUFFIX: fork
 
 jobs:
   sync:
