@@ -8,12 +8,11 @@
 > The screenshots further down come from upstream and still show the original button layout.
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="docs/fork/container-light.png">
-    <img src="docs/fork/container.png" alt="Container card with header controls" width="420">
-  </picture>
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="docs/fork/stack-light.png">
-    <img src="docs/fork/stack.png" alt="Stack card with header controls" width="420">
-  </picture>
+  <img src="docs/fork/container.png" alt="Container card with header controls, dark theme" width="420">
+  <img src="docs/fork/container-light.png" alt="Container card with header controls, light theme" width="420">
+</p>
+
+<p align="center">
+  <img src="docs/fork/stack.png" alt="Stack card with header controls, dark theme" width="420">
+  <img src="docs/fork/stack-light.png" alt="Stack card with header controls, light theme" width="420">
 </p>
