@@ -48,7 +48,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898729+github-actions[bot]@users.noreply.github.com"
           git remote add upstream "$UPSTREAM"
-          git fetch upstream main --tags
+          # --force: upstream's tags always win. A tag of the same name created in this
+          # fork (e.g. by upstream's own release workflow running here) would otherwise
+          # make the fetch fail with "would clobber existing tag".
+          git fetch --force upstream main --tags
 
       # The fork's README is not kept as a hand-edited commit (it would conflict
       # whenever upstream edits its README). Instead the last commit, marked
